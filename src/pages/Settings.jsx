@@ -12,7 +12,8 @@ import {
   LuArrowLeft,
   LuCircleCheck,
   LuExternalLink,
-  LuShieldAlert
+  LuShieldAlert,
+  LuX
 } from 'react-icons/lu';
 
 // Mock Data
@@ -111,19 +112,19 @@ export default function SettingsPage() {
           <div>
             <h3 className="text-lg font-bold text-[#f1f3fc]">Revoke API Key</h3>
             <p className="mt-2 text-sm text-[#a8abb3] leading-relaxed">
-              Are you sure you want to revoke the key <strong className="text-[#f1f3fc]">"{keyToDelete?.name}"</strong>? 
+              Are you sure you want to revoke the key <strong className="text-[#f1f3fc]">"{keyToDelete?.name}"</strong>?
               This action cannot be undone and will immediately break any applications using this key for log ingestion.
             </p>
           </div>
         </div>
         <div className="mt-6 flex gap-3 justify-end">
-          <button 
+          <button
             onClick={() => setDeleteKeyModalOpen(false)}
             className="px-4 py-2 text-sm font-medium text-[#a8abb3] hover:text-[#f1f3fc] bg-[#0a0e14] border border-[#44484f]/40 hover:border-[#44484f] rounded-lg transition-colors"
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={confirmDeleteKey}
             className="px-4 py-2 text-sm font-bold text-white bg-[#f87171] hover:bg-red-500 rounded-lg shadow-[0_0_15px_rgba(248,113,113,0.4)] transition-all"
           >
@@ -149,13 +150,13 @@ export default function SettingsPage() {
           </div>
         </div>
         <div className="mt-6 flex gap-3 justify-end">
-          <button 
+          <button
             onClick={() => setRemoveUserModalOpen(false)}
             className="px-4 py-2 text-sm font-medium text-[#a8abb3] hover:text-[#f1f3fc] bg-[#0a0e14] border border-[#44484f]/40 hover:border-[#44484f] rounded-lg transition-colors"
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={confirmRemoveUser}
             className="px-4 py-2 text-sm font-bold text-white bg-[#f87171] hover:bg-red-500 rounded-lg shadow-[0_0_15px_rgba(248,113,113,0.4)] transition-all"
           >
@@ -169,7 +170,7 @@ export default function SettingsPage() {
   const GenerateKeyModal = () => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0e14]/80 backdrop-blur-sm px-4">
       <div className="bg-[#11161d] border border-[#44484f]/40 rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.5)] w-full max-w-lg p-6 relative">
-        
+
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-bold text-[#f1f3fc] flex items-center gap-2">
             <LuKey className="text-[#8ff5ff]" /> Generate New API Key
@@ -183,8 +184,8 @@ export default function SettingsPage() {
           <>
             <div className="mb-6">
               <label className="block text-sm font-medium text-[#a8abb3] mb-2">Key Name (e.g. Production US-East)</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={newKeyName}
                 onChange={(e) => setNewKeyName(e.target.value)}
                 placeholder="Name your key..."
@@ -194,7 +195,7 @@ export default function SettingsPage() {
             </div>
             <div className="flex justify-end gap-3">
               <button onClick={() => setGenerateModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[#a8abb3] hover:text-[#f1f3fc] transition-colors">Cancel</button>
-              <button 
+              <button
                 onClick={handleGenerateKey}
                 disabled={!newKeyName.trim()}
                 className="px-4 py-2 text-sm font-bold text-[#0a0e14] bg-[#00eefc] hover:bg-[#8ff5ff] rounded-lg shadow-[0_0_15px_rgba(0,238,252,0.3)] disabled:opacity-50 disabled:shadow-none transition-all"
@@ -211,19 +212,19 @@ export default function SettingsPage() {
                 <strong>Please copy this key now.</strong> For security reasons, it will never be shown again. If you lose it, you will need to generate a new one.
               </p>
             </div>
-            
+
             <div className="bg-[#0a0e14] border border-[#44484f]/40 p-4 rounded-lg flex items-center justify-between gap-4 group">
               <code className="text-[#8ff5ff] font-mono text-sm break-all">{generatedKey}</code>
-              <button 
+              <button
                 onClick={copyGeneratedKey}
                 className="flex items-center gap-2 px-3 py-1.5 bg-[#1a2027] hover:bg-[#252d3a] border border-[#44484f]/50 rounded-md text-[#f1f3fc] text-sm font-medium transition-colors flex-shrink-0"
               >
                 {keyCopied ? <><LuCircleCheck className="text-[#22c55e]" /> Copied</> : <><LuCopy /> Copy</>}
               </button>
             </div>
-            
+
             <div className="flex justify-end mt-6">
-              <button 
+              <button
                 onClick={() => { setGenerateModalOpen(false); setGeneratedKey(null); setNewKeyName(''); }}
                 className="px-6 py-2 text-sm font-bold text-[#0a0e14] bg-[#f1f3fc] hover:bg-white rounded-lg transition-all"
               >
@@ -238,11 +239,11 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col h-screen bg-[#0a0e14] text-[#f1f3fc] font-sans overflow-hidden cyber-grid">
-      
+
       {/* Header */}
       <header className="flex-none bg-[#0a0e14]/95 backdrop-blur border-b border-[#44484f]/20 p-6 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto flex items-center gap-4">
-          <button 
+          <button
             onClick={() => navigate('/app/dashboard')}
             className="p-1.5 text-[#7f8594] hover:text-[#8ff5ff] hover:bg-[#8ff5ff]/10 rounded-md transition-colors"
             title="Back to Dashboard"
@@ -260,36 +261,33 @@ export default function SettingsPage() {
 
       <main className="flex-1 overflow-auto p-6 custom-scrollbar">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-8">
-          
+
           {/* Vertical Navigation */}
           <nav className="w-full md:w-64 flex-shrink-0 space-y-1">
-            <button 
+            <button
               onClick={() => setActiveTab('api-keys')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                activeTab === 'api-keys' 
-                ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/20' 
-                : 'text-[#a8abb3] hover:bg-[#11161d] hover:text-[#f1f3fc]'
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'api-keys'
+                  ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/20'
+                  : 'text-[#a8abb3] hover:bg-[#11161d] hover:text-[#f1f3fc]'
+                }`}
             >
               <LuKey className="w-4 h-4" /> API Keys
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('team')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                activeTab === 'team' 
-                ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/20' 
-                : 'text-[#a8abb3] hover:bg-[#11161d] hover:text-[#f1f3fc]'
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'team'
+                  ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/20'
+                  : 'text-[#a8abb3] hover:bg-[#11161d] hover:text-[#f1f3fc]'
+                }`}
             >
               <LuUsers className="w-4 h-4" /> Team Members
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('billing')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                activeTab === 'billing' 
-                ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/20' 
-                : 'text-[#a8abb3] hover:bg-[#11161d] hover:text-[#f1f3fc]'
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'billing'
+                  ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/20'
+                  : 'text-[#a8abb3] hover:bg-[#11161d] hover:text-[#f1f3fc]'
+                }`}
             >
               <LuCreditCard className="w-4 h-4" /> Billing & Usage
             </button>
@@ -297,7 +295,7 @@ export default function SettingsPage() {
 
           {/* Content Area */}
           <div className="flex-1 min-w-0">
-            
+
             {/* Tab 1: API Keys */}
             {activeTab === 'api-keys' && (
               <div className="space-y-6 animate-in fade-in duration-300">
@@ -306,7 +304,7 @@ export default function SettingsPage() {
                     <h2 className="text-xl font-bold text-[#f1f3fc]">API Keys</h2>
                     <p className="text-sm text-[#a8abb3] mt-1">Manage the keys used to authenticate your log ingestion.</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setGenerateModalOpen(true)}
                     className="inline-flex items-center gap-2 rounded-lg bg-[#00eefc] px-4 py-2 text-sm font-bold text-[#0a0e14] hover:bg-[#8ff5ff] transition-all shadow-[0_0_15px_rgba(0,238,252,0.3)]"
                   >
@@ -333,15 +331,14 @@ export default function SettingsPage() {
                             <td className="px-6 py-4 font-mono text-[#7f8594]">{keyObj.key}</td>
                             <td className="px-6 py-4 text-[#a8abb3]">{keyObj.created}</td>
                             <td className="px-6 py-4">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                keyObj.status === 'Active' ? 'bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/20' : 'bg-[#7f8594]/10 text-[#7f8594] border border-[#7f8594]/20'
-                              }`}>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${keyObj.status === 'Active' ? 'bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/20' : 'bg-[#7f8594]/10 text-[#7f8594] border border-[#7f8594]/20'
+                                }`}>
                                 {keyObj.status}
                               </span>
                             </td>
                             <td className="px-6 py-4 text-right">
                               {keyObj.status === 'Active' && (
-                                <button 
+                                <button
                                   onClick={() => { setKeyToDelete(keyObj); setDeleteKeyModalOpen(true); }}
                                   className="text-[#7f8594] hover:text-[#f87171] p-2 hover:bg-[#f87171]/10 rounded transition-colors"
                                   title="Revoke Key"
@@ -369,7 +366,7 @@ export default function SettingsPage() {
 
                 {/* Invite Bar */}
                 <div className="bg-[#11161d] border border-[#44484f]/30 p-4 rounded-xl flex flex-col sm:flex-row gap-3">
-                  <input 
+                  <input
                     type="email"
                     placeholder="colleague@acme.io"
                     className="flex-1 bg-[#0a0e14] border border-[#44484f]/40 text-[#f1f3fc] text-sm rounded-lg focus:border-[#8ff5ff] focus:ring-1 focus:ring-[#8ff5ff] block px-4 py-2.5 outline-none transition-colors"
@@ -385,7 +382,7 @@ export default function SettingsPage() {
                     <option value="Editor">Editor</option>
                     <option value="Viewer">Viewer</option>
                   </select>
-                  <button 
+                  <button
                     onClick={handleInviteUser}
                     disabled={!inviteEmail}
                     className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#8ff5ff]/30 bg-[#00eefc]/10 px-6 py-2.5 text-sm font-semibold text-[#8ff5ff] hover:bg-[#00eefc]/20 transition-all disabled:opacity-50"
@@ -420,11 +417,10 @@ export default function SettingsPage() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${
-                                user.role === 'Admin' ? 'bg-[#8ff5ff]/10 text-[#8ff5ff] border-[#8ff5ff]/20' : 
-                                user.role === 'Editor' ? 'bg-[#f1f3fc]/5 text-[#f1f3fc] border-[#44484f]/30' : 
-                                'bg-transparent text-[#a8abb3] border-[#44484f]/30'
-                              }`}>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${user.role === 'Admin' ? 'bg-[#8ff5ff]/10 text-[#8ff5ff] border-[#8ff5ff]/20' :
+                                  user.role === 'Editor' ? 'bg-[#f1f3fc]/5 text-[#f1f3fc] border-[#44484f]/30' :
+                                    'bg-transparent text-[#a8abb3] border-[#44484f]/30'
+                                }`}>
                                 {user.role}
                               </span>
                             </td>
@@ -433,7 +429,7 @@ export default function SettingsPage() {
                             </td>
                             <td className="px-6 py-4 text-right">
                               {user.role !== 'Admin' && (
-                                <button 
+                                <button
                                   onClick={() => { setUserToRemove(user); setRemoveUserModalOpen(true); }}
                                   className="text-[#7f8594] hover:text-[#f87171] p-2 hover:bg-[#f87171]/10 rounded transition-colors"
                                   title="Remove User"
@@ -460,7 +456,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
-                  
+
                   {/* Current Plan Card */}
                   <div className="rounded-xl border border-[#44484f]/25 bg-[#11161d] p-6 shadow-[0_0_20px_rgba(0,0,0,0.2)]">
                     <div className="text-xs uppercase tracking-widest text-[#7f8594] mb-4">Current Plan</div>
@@ -479,16 +475,16 @@ export default function SettingsPage() {
                   {/* Usage Card */}
                   <div className="rounded-xl border border-[#44484f]/25 bg-[#11161d] p-6 shadow-[0_0_20px_rgba(0,0,0,0.2)]">
                     <div className="text-xs uppercase tracking-widest text-[#7f8594] mb-4">Current Billing Cycle Usage</div>
-                    
+
                     <div className="mb-2 flex justify-between items-end">
                       <span className="text-2xl font-bold text-[#f1f3fc]">842,010</span>
                       <span className="text-sm text-[#7f8594]">/ 1,000,000 logs</span>
                     </div>
-                    
+
                     <div className="h-2 w-full bg-[#0a0e14] rounded-full overflow-hidden border border-[#44484f]/20">
                       <div className="h-full bg-[#8ff5ff] shadow-[0_0_10px_rgba(143,245,255,0.5)]" style={{ width: '84.2%' }}></div>
                     </div>
-                    
+
                     <p className="mt-3 text-xs text-[#a8abb3]">
                       You have used <strong className="text-[#f1f3fc]">84%</strong> of your monthly limit. Cycle resets in 12 days.
                     </p>
