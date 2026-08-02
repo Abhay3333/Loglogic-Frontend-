@@ -1,9 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { FaTerminal } from 'react-icons/fa';
+import { supabase } from '../lib/supabase';
 
 const Navbar = () => {
   const location = useLocation();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+    });
+
+    // Listen to changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Error signing out:", error.message);
+      return;
+    }
+    localStorage.removeItem('loglogic_auth');
+    window.location.href = '/login';
+  };
 
   const getLinkClass = (path) => {
     return location.pathname === path
@@ -28,12 +54,28 @@ const Navbar = () => {
           <Link className={getLinkClass('/changelog')} to="/changelog">Changelog</Link>
         </div>
         <div className="flex items-center gap-6">
-          <Link to="/login">
-            <button className="text-[#a8abb3] hover:text-white transition-colors text-sm font-medium">Login</button>
-          </Link>
-          <Link to="/signup">
-          <button className="bg-linear-to-r from-[#8ff5ff] to-[#00eefc] text-[#005359] px-5 py-2 rounded-lg font-bold cursor-pointer text-sm tracking-tight active:scale-95 duration-100 cta-glow">Start for Free</button>
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <Link to="/app/dashboard" className="text-[#a8abb3] hover:text-white transition-colors text-sm font-medium">
+                Dashboard
+              </Link>
+              <button 
+                onClick={handleSignOut}
+                className="bg-linear-to-r from-[#f87171] to-[#ef4444] text-white px-5 py-2 rounded-lg font-bold cursor-pointer text-sm tracking-tight active:scale-95 duration-100"
+              >
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login">
+                <button className="text-[#a8abb3] hover:text-white transition-colors text-sm font-medium">Login</button>
+              </Link>
+              <Link to="/signup">
+                <button className="bg-linear-to-r from-[#8ff5ff] to-[#00eefc] text-[#005359] px-5 py-2 rounded-lg font-bold cursor-pointer text-sm tracking-tight active:scale-95 duration-100 cta-glow">Start for Free</button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>

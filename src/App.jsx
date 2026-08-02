@@ -1,9 +1,12 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
 import PricingPage from './pages/Pricing'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
+import ProtectedDashboard from './components/ProtectedDashboard'
+import Onboarding from './pages/Onboarding'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import PrivacyPage from './pages/Privacy'
@@ -36,6 +39,41 @@ const AppContent = () => {
   const isPrivateAppPage = location.pathname.startsWith('/app')
   const isAdminPage = location.pathname.startsWith('/admin')
 
+  const [checkingAuth, setCheckingAuth] = useState(true)
+
+  useEffect(() => {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        localStorage.setItem('loglogic_auth', 'true')
+      } else {
+        localStorage.removeItem('loglogic_auth')
+      }
+      setCheckingAuth(false)
+    })
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        localStorage.setItem('loglogic_auth', 'true')
+      } else {
+        localStorage.removeItem('loglogic_auth')
+      }
+      setCheckingAuth(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col justify-center items-center font-mono text-primary">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <span>[BOOTING LOGLOGIC SYSTEM...]</span>
+      </div>
+    )
+  }
+
   return (
     <>
       {!isLoginPage && !isSignupPage && !isPrivateAppPage && !isAdminPage && <Navbar />}
@@ -48,47 +86,15 @@ const AppContent = () => {
         <Route path="/signup" element={<Signup />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
-        <Route path="/app" element={<Navigate to="/app/dashboard" replace />} />
-        <Route
-          path="/app/dashboard"
-          element={(
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="/app/live"
-          element={(
-            <ProtectedRoute>
-              <LiveTailPage />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="/app/logs"
-          element={(
-            <ProtectedRoute>
-              <HistoricalLogsPage />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="/app/alerts"
-          element={(
-            <ProtectedRoute>
-              <AlertsPage />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="/app/settings"
-          element={(
-            <ProtectedRoute>
-              <SettingsPage />
-            </ProtectedRoute>
-          )}
-        />
+        <Route path="/app" element={<ProtectedDashboard />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="live" element={<LiveTailPage />} />
+          <Route path="logs" element={<HistoricalLogsPage />} />
+          <Route path="alerts" element={<AlertsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="onboarding" element={<Onboarding />} />
+        </Route>
         <Route
           path="/admin/dashboard"
           element={(

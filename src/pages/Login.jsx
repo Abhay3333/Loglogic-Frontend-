@@ -1,15 +1,65 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FaCheck, FaGithub, FaGoogle, FaHubspot, FaTerminal } from 'react-icons/fa'
+import { supabase } from '../lib/supabase'
 
 const Login = () => {
   const navigate = useNavigate()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [errorMsg, setErrorMsg] = useState("")
+  const [successMsg, setSuccessMsg] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const handleLogin = async (email, password) => {
+    setErrorMsg("")
+    setSuccessMsg("")
+    setLoading(true)
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    setLoading(false)
+
+    if (error) {
+      console.error("Login failed:", error.message);
+      setErrorMsg(error.message);
+      return;
+    }
+
+    console.log("Logged in successfully!", data);
+    setSuccessMsg("Logged in successfully! Redirecting...");
+    
+    // Set localStorage auth
+    localStorage.setItem('loglogic_auth', 'true')
+    
+    setTimeout(() => {
+      navigate('/app/dashboard')
+    }, 1000)
+  };
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    localStorage.setItem('loglogic_auth', 'true')
-    navigate('/app/dashboard')
+    handleLogin(email, password)
   }
+
+  const handleOAuthLogin = async (providerName) => {
+    setErrorMsg("")
+    setSuccessMsg("")
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: providerName,
+      options: {
+        redirectTo: `${window.location.origin}/app/dashboard`
+      }
+    });
+
+    if (error) {
+      console.error(`${providerName} login failed:`, error.message);
+      setErrorMsg(error.message);
+    }
+  };
 
   return (
     <div>
@@ -36,11 +86,17 @@ const Login = () => {
       </div>
       {/* OAuth Buttons */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        <button className="flex items-center justify-center gap-3 py-3 px-4 bg-surface-container-high hover:bg-surface-bright border border-outline-variant/20 rounded-lg transition-all duration-200 group">
+        <button 
+          onClick={() => handleOAuthLogin('github')}
+          className="flex items-center justify-center gap-3 py-3 px-4 bg-surface-container-high hover:bg-surface-bright border border-outline-variant/20 rounded-lg transition-all duration-200 group"
+        >
           <FaGithub className="text-xl group-hover:text-primary transition-colors" />
           <span className="font-medium text-sm text-on-surface">Continue with GitHub</span>
         </button>
-        <button className="flex items-center justify-center gap-3 py-3 px-4 bg-surface-container-high hover:bg-surface-bright border border-outline-variant/20 rounded-lg transition-all duration-200 group">
+        <button 
+          onClick={() => handleOAuthLogin('google')}
+          className="flex items-center justify-center gap-3 py-3 px-4 bg-surface-container-high hover:bg-surface-bright border border-outline-variant/20 rounded-lg transition-all duration-200 group"
+        >
           <FaGoogle className="text-xl text-[#EA4335]" />
           <span className="font-medium text-sm text-on-surface">Continue with Google</span>
         </button>
@@ -53,19 +109,49 @@ const Login = () => {
       </div>
       {/* Form */}
       <form className="space-y-6 mb-8" onSubmit={handleSubmit}>
+        {errorMsg && (
+          <div className="text-error text-xs font-mono p-3 bg-red-950/20 border border-red-500/20 rounded">
+            {errorMsg}
+          </div>
+        )}
+        {successMsg && (
+          <div className="text-secondary text-xs font-mono p-3 bg-emerald-950/20 border border-emerald-500/20 rounded">
+            {successMsg}
+          </div>
+        )}
         <div className="space-y-2">
           <label className="block text-[10px] uppercase tracking-widest font-bold text-outline-variant" htmlFor="email">Work Email</label>
-          <input className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant py-3 px-4 text-on-surface placeholder:text-outline focus:ring-0 focus:border-primary focus:bg-surface-bright transition-all font-mono text-sm" id="email" placeholder="operator@loglogic.io" type="email" />
+          <input 
+            className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant py-3 px-4 text-on-surface placeholder:text-outline focus:ring-0 focus:border-primary focus:bg-surface-bright transition-all font-mono text-sm" 
+            id="email" 
+            placeholder="operator@loglogic.io" 
+            type="email" 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </div>
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <label className="block text-[10px] uppercase tracking-widest font-bold text-outline-variant" htmlFor="password">Security Key</label>
             <a className="text-[10px] uppercase tracking-widest font-bold text-primary hover:text-primary-fixed transition-colors" href="#">Forgot Password?</a>
           </div>
-          <input className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant py-3 px-4 text-on-surface placeholder:text-outline focus:ring-0 focus:border-primary focus:bg-surface-bright transition-all font-mono text-sm" id="password" placeholder="••••••••••••" type="password" />
+          <input 
+            className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant py-3 px-4 text-on-surface placeholder:text-outline focus:ring-0 focus:border-primary focus:bg-surface-bright transition-all font-mono text-sm" 
+            id="password" 
+            placeholder="••••••••••••" 
+            type="password" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
-        <button className="w-full bg-linear-to-r from-[#71d9e4] to-[#1adcf2] text-[#0a4e63] py-4 rounded-lg text-on-primary-container font-headline font-bold text-sm tracking-widest uppercase hover:brightness-110 active:scale-[0.98] transition-all glow-primary">
-          Sign In
+        <button 
+          className="w-full bg-linear-to-r from-[#71d9e4] to-[#1adcf2] text-[#0a4e63] py-4 rounded-lg text-on-primary-container font-headline font-bold text-sm tracking-widest uppercase hover:brightness-110 active:scale-[0.98] transition-all glow-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          type="submit"
+          disabled={loading}
+        >
+          {loading ? "Signing In..." : "Sign In"}
         </button>
       </form>
       {/* Footer */}

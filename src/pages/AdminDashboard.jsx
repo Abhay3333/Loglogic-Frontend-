@@ -68,7 +68,7 @@ const AdminDashboard = () => {
         <Link to="/admin/billing" className="py-3 text-sm font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 transition-colors">Financials & Security</Link>
       </div>
 
-      <main className="p-6 max-w-[1600px] mx-auto space-y-6">
+      <main className="p-6 max-w-400 mx-auto space-y-6">
         {/* KPI Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1 */}

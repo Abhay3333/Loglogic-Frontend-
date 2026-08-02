@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useMemo, useState, useEffect } from 'react'
+import { Link, useNavigate, useOutletContext } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import { getOrganizations } from '../api/organization'
 import {
   Area,
   AreaChart,
@@ -63,6 +65,44 @@ const DashboardPage = () => {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const { user } = useOutletContext()
+  const [profile, setProfile] = useState(null)
+  const [orgs, setOrgs] = useState([])
+
+  useEffect(() => {
+    if (user?.id) {
+      supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setProfile(data)
+          }
+        })
+    }
+  }, [user])
+
+  useEffect(() => {
+    getOrganizations()
+      .then((data) => {
+        if (data.organizations) {
+          setOrgs(data.organizations)
+        }
+      })
+      .catch((err) => console.error("Error loading organizations on dashboard:", err))
+  }, [])
+
+  const currentOrgName = orgs.length > 0 && orgs[0] ? orgs[0].name : 'Acme Corp';
+
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || 'Operator';
+
+  const initials = displayName
+    ? displayName.split(' ').map((n) => n[0]).join('').toUpperCase()
+    : user?.email ? user.email.substring(0, 2).toUpperCase() : 'AK';
+
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
 
   const usageCurrent = 842010
   const usageLimit = 1000000
@@ -87,9 +127,14 @@ const DashboardPage = () => {
     }
   }
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error("Error signing out:", error.message)
+      return
+    }
     localStorage.removeItem('loglogic_auth')
-    navigate('/login')
+    window.location.href = '/login'
   }
 
   return (
@@ -101,7 +146,7 @@ const DashboardPage = () => {
       <header className="sticky top-0 z-30 border-b border-[#44484f]/20 bg-[#0a0e14]/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4">
           <div>
-            <p className="text-sm text-[#a8abb3]"><span className="text-[#8ff5ff] font-medium">Acme Corp</span> / Dashboard</p>
+            <p className="text-sm text-[#a8abb3]"><span className="text-[#8ff5ff] font-medium">{currentOrgName}</span> / Dashboard</p>
           </div>
 
           <button 
@@ -116,14 +161,26 @@ const DashboardPage = () => {
           </button>
 
           <div className="relative">
-            <button className="flex items-center gap-2 rounded-full border border-[#44484f]/40 bg-[#11161d] px-2 py-1.5 hover:border-[#8ff5ff]/40 transition-colors" onClick={() => setMenuOpen((open) => !open)} type="button">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1a2027] text-xs font-semibold text-[#f1f3fc]">AK</div>
+            <button className="flex items-center gap-2 rounded-full border border-[#44484f]/40 bg-[#11161d] p-1.5 hover:border-[#8ff5ff]/40 transition-colors" onClick={() => setMenuOpen((open) => !open)} type="button">
+              {avatarUrl ? (
+                <img 
+                  src={avatarUrl} 
+                  alt="Profile" 
+                  className="h-8 w-8 rounded-full object-cover border border-[#44484f]/30" 
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1a2027] text-xs font-semibold text-[#f1f3fc]">{initials}</div>
+              )}
               <FiChevronDown className="text-[#a8abb3]" />
             </button>
 
             {menuOpen && (
               <div className="absolute right-0 mt-2 w-52 rounded-xl border border-[#44484f]/40 bg-[#11161d] p-2 shadow-xl">
-                <p className="px-3 py-2 text-sm text-[#a8abb3]">alex@acme.io</p>
+                <div className="px-3 py-1.5 border-b border-[#44484f]/25 mb-1.5">
+                  <p className="text-xs font-bold text-white truncate">{displayName}</p>
+                  <p className="text-[10px] text-[#a8abb3] truncate">{user?.email}</p>
+                </div>
                 <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#f1f3fc] hover:bg-[#1a2027]" onClick={handleSignOut} type="button">
                   <FiLogOut />
                   Sign out

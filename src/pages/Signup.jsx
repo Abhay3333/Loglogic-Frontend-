@@ -1,13 +1,70 @@
+import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { FaCheck, FaGithub, FaGoogle, FaTerminal } from "react-icons/fa"
+import { supabase } from "../lib/supabase"
+
 const Signup = () => {
   const navigate = useNavigate()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [fullName, setFullName] = useState("")
+  const [errorMsg, setErrorMsg] = useState("")
+  const [successMsg, setSuccessMsg] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const handleSignUp = async (email, password, fullName) => {
+    setErrorMsg("")
+    setSuccessMsg("")
+    setLoading(true)
+    const { data, error } = await supabase.auth.signUp({
+      email: email,
+      password: password,
+      options: {
+        data: {
+          full_name: fullName, // This maps to the raw_user_meta_data we used in our SQL trigger!
+        }
+      }
+    });
+
+    setLoading(false)
+
+    if (error) {
+      console.error("Sign up failed:", error.message);
+      setErrorMsg(error.message);
+      return;
+    }
+    
+    console.log("User created!", data);
+    setSuccessMsg("Account created successfully! Redirecting...");
+    
+    // Also set auth localStorage to ensure client routing works
+    localStorage.setItem('loglogic_auth', 'true')
+    
+    setTimeout(() => {
+      navigate('/app/dashboard')
+    }, 1500)
+  };
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    localStorage.setItem('loglogic_auth', 'true')
-    navigate('/app/dashboard')
+    handleSignUp(email, password, fullName)
   }
+
+  const handleOAuthLogin = async (providerName) => {
+    setErrorMsg("")
+    setSuccessMsg("")
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: providerName,
+      options: {
+        redirectTo: `${window.location.origin}/app/dashboard`
+      }
+    });
+
+    if (error) {
+      console.error(`${providerName} login failed:`, error.message);
+      setErrorMsg(error.message);
+    }
+  };
 
   return (
     <div>
@@ -31,11 +88,17 @@ const Signup = () => {
         <h1 className="font-headline text-4xl font-bold tracking-tight mb-8">Start logging in seconds.</h1>
         {/* OAuth Actions */}
         <div className="space-y-4 mb-8">
-          <button className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-surface-container-high border border-outline-variant/30 rounded-lg text-sm font-medium hover:bg-surface-bright transition-all group">
+          <button 
+            onClick={() => handleOAuthLogin('github')}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-surface-container-high border border-outline-variant/30 rounded-lg text-sm font-medium hover:bg-surface-bright transition-all group"
+          >
             <FaGithub className="w-5 h-5" />
             <span>Continue with GitHub</span>
           </button>
-          <button className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-surface-container-high border border-outline-variant/30 rounded-lg text-sm font-medium hover:bg-surface-bright transition-all group">
+          <button 
+            onClick={() => handleOAuthLogin('google')}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-surface-container-high border border-outline-variant/30 rounded-lg text-sm font-medium hover:bg-surface-bright transition-all group"
+          >
             <FaGoogle className="w-5 h-5 text-[#EA4335]" />
             <span>Continue with Google</span>
           </button>
@@ -48,16 +111,58 @@ const Signup = () => {
         </div>
         {/* Form */}
         <form className="space-y-6" onSubmit={handleSubmit}>
+          {errorMsg && (
+            <div className="text-error text-xs font-mono p-3 bg-red-950/20 border border-red-500/20 rounded">
+              {errorMsg}
+            </div>
+          )}
+          {successMsg && (
+            <div className="text-secondary text-xs font-mono p-3 bg-emerald-950/20 border border-emerald-500/20 rounded">
+              {successMsg}
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="block text-xs font-label uppercase tracking-widest text-on-surface-variant" htmlFor="fullName">Full Name</label>
+            <input 
+              className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant/30 text-on-surface focus:ring-0 focus:border-primary transition-all font-mono py-3 pl-2.5 rounded" 
+              id="fullName" 
+              placeholder="John Doe" 
+              type="text" 
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+            />
+          </div>
           <div className="space-y-2">
             <label className="block text-xs font-label uppercase tracking-widest text-on-surface-variant" htmlFor="email">Email Address</label>
-            <input className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant/30 text-on-surface focus:ring-0 focus:border-primary transition-all font-mono py-3 pl-2.5 rounded" id="email" placeholder="name@company.com" type="email" />
+            <input 
+              className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant/30 text-on-surface focus:ring-0 focus:border-primary transition-all font-mono py-3 pl-2.5 rounded" 
+              id="email" 
+              placeholder="name@company.com" 
+              type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
           <div className="space-y-2">
             <label className="block text-xs font-label uppercase tracking-widest text-on-surface-variant" htmlFor="password">Password</label>
-            <input className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant/30 text-on-surface focus:ring-0 focus:border-primary transition-all font-mono py-3 pl-2.5 rounded" id="password" placeholder="••••••••" type="password" />
+            <input 
+              className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant/30 text-on-surface focus:ring-0 focus:border-primary transition-all font-mono py-3 pl-2.5 rounded" 
+              id="password" 
+              placeholder="••••••••" 
+              type="password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </div>
-          <button className="w-full bg-linear-to-r from-[#71d9e4] to-[#1adcf2] text-[#0a4e63] font-headline font-bold py-4 rounded-md shadow-[0_0_15px_rgba(0,238,252,0.2)] hover:from-[#82e3ec] hover:to-[#33e4f7] hover:shadow-[0_0_25px_rgba(0,238,252,0.4)] transition-all active:scale-[0.98]" type="submit">
-            Create Account
+          <button 
+            className="w-full bg-linear-to-r from-[#71d9e4] to-[#1adcf2] text-[#0a4e63] font-headline font-bold py-4 rounded-md shadow-[0_0_15px_rgba(0,238,252,0.2)] hover:from-[#82e3ec] hover:to-[#33e4f7] hover:shadow-[0_0_25px_rgba(0,238,252,0.4)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" 
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? "Creating Account..." : "Create Account"}
           </button>
         </form>
         <footer className="mt-8 text-center">
