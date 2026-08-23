@@ -1,13 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { getOrganizations } from '../api/organization';
 
 export default function ProtectedDashboard() {
   const [user, setUser] = useState(null);
+  const [organizations, setOrganizations] = useState([]);
+  const [currentOrg, setCurrentOrg] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const fetchOrgs = useCallback(async () => {
+    try {
+      const responseData = await getOrganizations();
+      const orgList = responseData.organizations || [];
+      setOrganizations(orgList);
+      if (orgList.length > 0) {
+        setCurrentOrg(prev => {
+          if (prev && orgList.some(o => o.id === prev.id)) {
+            return orgList.find(o => o.id === prev.id);
+          }
+          return orgList[0];
+        });
+      } else {
+        setCurrentOrg(null);
+      }
+      return orgList;
+    } catch (err) {
+      console.error("Error checking workspace status via API:", err);
+      return [];
+    }
+  }, []);
 
   useEffect(() => {
     const checkUserAndOrg = async () => {
@@ -20,31 +44,23 @@ export default function ProtectedDashboard() {
       }
 
       const currentUser = session.user;
+      setUser(currentUser);
 
-      try {
-        // 2. Query Express API backend to see if they belong to any org
-        const responseData = await getOrganizations();
-        
-        const hasOrg = responseData.organizations && responseData.organizations.length > 0;
+      // 2. Query Express API backend to see if they belong to any org
+      const orgList = await fetchOrgs();
+      const hasOrg = orgList.length > 0;
 
-        if (!hasOrg && location.pathname !== '/app/onboarding') {
-          navigate('/app/onboarding');
-        } else if (hasOrg && location.pathname === '/app/onboarding') {
-          navigate('/app/dashboard');
-        } else {
-          setUser(currentUser);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error("Error checking workspace status via API:", err);
-        // Fallback: If backend is down or errors, set user and let them view console
-        setUser(currentUser);
+      if (!hasOrg && location.pathname !== '/app/onboarding') {
+        navigate('/app/onboarding');
+      } else if (hasOrg && location.pathname === '/app/onboarding') {
+        navigate('/app/dashboard');
+      } else {
         setLoading(false);
       }
     };
     
     checkUserAndOrg();
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, fetchOrgs]);
 
   if (loading) {
     return (
@@ -55,5 +71,16 @@ export default function ProtectedDashboard() {
     );
   }
 
-  return <Outlet context={{ user }} />;
+  return (
+    <Outlet 
+      context={{ 
+        user, 
+        organizations, 
+        currentOrg, 
+        setCurrentOrg, 
+        refreshOrganizations: fetchOrgs 
+      }} 
+    />
+  );
 }
+

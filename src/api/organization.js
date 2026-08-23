@@ -20,7 +20,7 @@ export const getOrganizations = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session ? session.access_token : "";
 
-    const response = await axios.get(`${BASE_URL}/api/organizations/get`, {
+    const response = await axios.get(`${BASE_URL}/api/organizations`, {
         headers: {
             Authorization: `Bearer ${token}`
         },

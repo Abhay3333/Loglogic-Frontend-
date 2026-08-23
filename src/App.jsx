@@ -9,6 +9,7 @@ import ProtectedDashboard from './components/ProtectedDashboard'
 import Onboarding from './pages/Onboarding'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import AcceptInvite from './pages/AcceptInvite'
 import PrivacyPage from './pages/Privacy'
 import TermsPage from './pages/Terms'
 import DocsPage from './pages/Docs'
@@ -84,6 +85,7 @@ const AppContent = () => {
         <Route path="/changelog" element={<ChangelogPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/invite" element={<AcceptInvite />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/app" element={<ProtectedDashboard />}>
