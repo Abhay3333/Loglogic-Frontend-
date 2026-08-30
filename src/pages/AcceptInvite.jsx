@@ -40,6 +40,11 @@ export default function AcceptInvite() {
       return;
     }
 
+    // Stash the token so the onboarding interceptor can route a freshly
+    // signed-up / logged-in user back here instead of forcing them to
+    // create their own workspace (even if the redirect param is lost).
+    localStorage.setItem('loglogic_pending_invite', token);
+
     validateInvite(token)
       .then((data) => {
         setInvite(data.invite);
@@ -47,6 +52,8 @@ export default function AcceptInvite() {
       .catch((err) => {
         console.error('Validation error:', err);
         setError(err.response?.data?.error || err.message || 'Invalid or expired invitation link.');
+        // A bad/expired token is not worth stashing.
+        localStorage.removeItem('loglogic_pending_invite');
       })
       .finally(() => setLoading(false));
   }, [token]);
@@ -62,6 +69,7 @@ export default function AcceptInvite() {
     setError(null);
     try {
       await acceptInvite(token);
+      localStorage.removeItem('loglogic_pending_invite');
       setSuccess(true);
       setTimeout(() => {
         navigate('/app/dashboard');

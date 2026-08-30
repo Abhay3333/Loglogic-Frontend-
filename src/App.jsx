@@ -22,13 +22,48 @@ import SettingsPage from './pages/Settings'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminInfrastructure from './pages/AdminInfrastructure'
 import AdminSecurityBilling from './pages/AdminSecurityBilling'
+import { getOrganizations } from './api/organization'
 
-const isAuthenticated = () => localStorage.getItem('loglogic_auth') === 'true'
+// Admin routes require a real Supabase session AND an elevated role
+// (owner/admin) in at least one workspace. The old localStorage flag was
+// spoofable and set on any login, so any signed-in user could reach the
+// platform console — this closes that gap.
+const AdminRoute = ({ children }) => {
+  const [status, setStatus] = useState('checking') // checking | allowed | denied | unauth
 
-const ProtectedRoute = ({ children }) => {
-  if (!isAuthenticated()) {
-    return <Navigate to="/login" replace />
+  useEffect(() => {
+    let active = true
+    const verify = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        if (active) setStatus('unauth')
+        return
+      }
+      try {
+        const { organizations = [] } = await getOrganizations()
+        const elevated = organizations.some(
+          (o) => o.role === 'owner' || o.role === 'admin'
+        )
+        if (active) setStatus(elevated ? 'allowed' : 'denied')
+      } catch {
+        if (active) setStatus('denied')
+      }
+    }
+    verify()
+    return () => { active = false }
+  }, [])
+
+  if (status === 'checking') {
+    return (
+      <div className="min-h-screen bg-background flex flex-col justify-center items-center font-mono text-primary">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <span>[VERIFYING ADMIN ACCESS...]</span>
+      </div>
+    )
   }
+
+  if (status === 'unauth') return <Navigate to="/login" replace />
+  if (status === 'denied') return <Navigate to="/app/dashboard" replace />
 
   return children
 }
@@ -100,49 +135,49 @@ const AppContent = () => {
         <Route
           path="/admin/dashboard"
           element={(
-            <ProtectedRoute>
+            <AdminRoute>
               <AdminDashboard />
-            </ProtectedRoute>
+            </AdminRoute>
           )}
         />
         <Route
           path="/admin/infrastructure"
           element={(
-            <ProtectedRoute>
+            <AdminRoute>
               <Navigate to="/admin/queues" replace />
-            </ProtectedRoute>
+            </AdminRoute>
           )}
         />
         <Route
           path="/admin/queues"
           element={(
-            <ProtectedRoute>
+            <AdminRoute>
               <AdminInfrastructure />
-            </ProtectedRoute>
+            </AdminRoute>
           )}
         />
         <Route
           path="/admin/alerts"
           element={(
-            <ProtectedRoute>
+            <AdminRoute>
               <AdminInfrastructure />
-            </ProtectedRoute>
+            </AdminRoute>
           )}
         />
         <Route
           path="/admin/billing"
           element={(
-            <ProtectedRoute>
+            <AdminRoute>
               <AdminSecurityBilling />
-            </ProtectedRoute>
+            </AdminRoute>
           )}
         />
         <Route
           path="/admin/settings"
           element={(
-            <ProtectedRoute>
+            <AdminRoute>
               <AdminSecurityBilling />
-            </ProtectedRoute>
+            </AdminRoute>
           )}
         />
       </Routes>

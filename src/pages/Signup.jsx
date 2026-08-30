@@ -1,10 +1,13 @@
 import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { FaCheck, FaGithub, FaGoogle, FaTerminal } from "react-icons/fa"
 import { supabase } from "../lib/supabase"
 
 const Signup = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Preserve a pending /invite target through the signup flow.
+  const redirectTarget = searchParams.get('redirect') || '/app/dashboard'
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [fullName, setFullName] = useState("")
@@ -35,13 +38,23 @@ const Signup = () => {
     }
     
     console.log("User created!", data);
+
+    // If email confirmation is required, Supabase returns no session yet.
+    if (!data.session) {
+      setSuccessMsg("Account created. Check your email to confirm, then sign in to continue.");
+      setTimeout(() => {
+        navigate(`/login?redirect=${encodeURIComponent(redirectTarget)}`)
+      }, 2500)
+      return;
+    }
+
     setSuccessMsg("Account created successfully! Redirecting...");
-    
+
     // Also set auth localStorage to ensure client routing works
     localStorage.setItem('loglogic_auth', 'true')
-    
+
     setTimeout(() => {
-      navigate('/app/dashboard')
+      navigate(redirectTarget)
     }, 1500)
   };
 
@@ -56,7 +69,7 @@ const Signup = () => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: providerName,
       options: {
-        redirectTo: `${window.location.origin}/app/dashboard`
+        redirectTo: `${window.location.origin}${redirectTarget}`
       }
     });
 
@@ -167,7 +180,7 @@ const Signup = () => {
         </form>
         <footer className="mt-8 text-center">
           <p className="text-sm text-on-surface-variant">
-            Already have an account? <Link className="text-primary hover:underline font-medium" to="/login">Log in</Link>
+            Already have an account? <Link className="text-primary hover:underline font-medium" to={`/login${searchParams.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : ''}`}>Log in</Link>
           </p>
           <p className="mt-12 text-[10px] leading-relaxed text-outline uppercase tracking-tight max-w-xs mx-auto">
             By clicking continue, you agree to our <Link className="underline hover:text-on-surface" to="/terms">Terms of Service</Link> and <Link className="underline hover:text-on-surface" to="/privacy">Privacy Policy</Link>.

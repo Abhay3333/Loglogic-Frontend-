@@ -50,6 +50,16 @@ export default function ProtectedDashboard() {
       const orgList = await fetchOrgs();
       const hasOrg = orgList.length > 0;
 
+      // If the user has no workspace but arrived with a pending invite,
+      // route them to accept it instead of forcing a personal workspace.
+      // Accepting an invite counts as onboarding.
+      const pendingInvite = localStorage.getItem('loglogic_pending_invite');
+
+      if (!hasOrg && pendingInvite && location.pathname !== '/app/onboarding') {
+        navigate(`/invite?token=${encodeURIComponent(pendingInvite)}`);
+        return;
+      }
+
       if (!hasOrg && location.pathname !== '/app/onboarding') {
         navigate('/app/onboarding');
       } else if (hasOrg && location.pathname === '/app/onboarding') {

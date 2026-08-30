@@ -1,10 +1,13 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { FaCheck, FaGithub, FaGoogle, FaHubspot, FaTerminal } from 'react-icons/fa'
 import { supabase } from '../lib/supabase'
 
 const Login = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Where to send the user after auth (e.g. back to a pending /invite link).
+  const redirectTarget = searchParams.get('redirect') || '/app/dashboard'
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [errorMsg, setErrorMsg] = useState("")
@@ -34,9 +37,9 @@ const Login = () => {
     
     // Set localStorage auth
     localStorage.setItem('loglogic_auth', 'true')
-    
+
     setTimeout(() => {
-      navigate('/app/dashboard')
+      navigate(redirectTarget)
     }, 1000)
   };
 
@@ -51,7 +54,7 @@ const Login = () => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: providerName,
       options: {
-        redirectTo: `${window.location.origin}/app/dashboard`
+        redirectTo: `${window.location.origin}${redirectTarget}`
       }
     });
 
@@ -156,8 +159,8 @@ const Login = () => {
       </form>
       {/* Footer */}
       <p className="text-sm text-center text-on-surface-variant font-medium">
-        Don't have an account? 
-        <Link className="text-secondary-fixed hover:text-secondary-dim font-bold transition-colors ml-1" to="/signup">Sign up</Link>
+        Don't have an account?
+        <Link className="text-secondary-fixed hover:text-secondary-dim font-bold transition-colors ml-1" to={`/signup${searchParams.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : ''}`}>Sign up</Link>
       </p>
     </section>
     {/* Right Side: Marketing/Visual */}

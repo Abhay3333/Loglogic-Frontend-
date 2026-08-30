@@ -81,6 +81,10 @@ export default function SettingsPage() {
   const activeOrgId = currentOrg?.id || (organizations.length > 0 ? organizations[0].id : null);
   const activeOrgName = currentOrg?.name || (organizations.length > 0 ? organizations[0].name : 'Workspace');
 
+  // Only the workspace owner can send invitations (matches backend RBAC).
+  const activeOrg = currentOrg || (organizations.length > 0 ? organizations[0] : null);
+  const isOwner = activeOrg?.role === 'owner';
+
   // Fetch API Keys
   const fetchKeys = useCallback(async () => {
     if (!activeOrgId) {
@@ -710,7 +714,9 @@ export default function SettingsPage() {
                   </div>
                   <button
                     onClick={() => { setInviteModalOpen(true); setInviteError(null); setGeneratedInviteLink(null); }}
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#00eefc] hover:bg-[#8ff5ff] px-4 py-2.5 text-sm font-bold text-[#0a0e14] shadow-[0_0_15px_rgba(0,238,252,0.3)] transition-all cursor-pointer"
+                    disabled={!isOwner}
+                    title={isOwner ? 'Invite a new member' : 'Only the workspace owner can invite members'}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#00eefc] hover:bg-[#8ff5ff] px-4 py-2.5 text-sm font-bold text-[#0a0e14] shadow-[0_0_15px_rgba(0,238,252,0.3)] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                   >
                     <LuPlus className="w-4 h-4" /> Invite Member
                   </button>
