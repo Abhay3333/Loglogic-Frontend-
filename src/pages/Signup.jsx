@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { FaCheck, FaGithub, FaGoogle, FaTerminal } from "react-icons/fa"
+import { FaCheck, FaEye, FaEyeSlash, FaGithub, FaGoogle, FaTerminal } from "react-icons/fa"
 import { supabase } from "../lib/supabase"
 
 const Signup = () => {
@@ -10,6 +10,9 @@ const Signup = () => {
   const redirectTarget = searchParams.get('redirect') || '/app/dashboard'
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [fullName, setFullName] = useState("")
   const [errorMsg, setErrorMsg] = useState("")
   const [successMsg, setSuccessMsg] = useState("")
@@ -58,8 +61,16 @@ const Signup = () => {
     }, 1500)
   };
 
+  // Live mismatch flag: only flag once the user has typed into the confirm field.
+  const passwordsMismatch = confirmPassword.length > 0 && password !== confirmPassword
+
   const handleSubmit = (event) => {
     event.preventDefault()
+    if (password !== confirmPassword) {
+      setSuccessMsg("")
+      setErrorMsg("Passwords do not match. Please re-enter them.")
+      return
+    }
     handleSignUp(email, password, fullName)
   }
 
@@ -160,20 +171,67 @@ const Signup = () => {
           </div>
           <div className="space-y-2">
             <label className="block text-xs font-label uppercase tracking-widest text-on-surface-variant" htmlFor="password">Password</label>
-            <input 
-              className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant/30 text-on-surface focus:ring-0 focus:border-primary transition-all font-mono py-3 pl-2.5 rounded" 
-              id="password" 
-              placeholder="••••••••" 
-              type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <input
+                className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant/30 text-on-surface focus:ring-0 focus:border-primary transition-all font-mono py-3 pl-2.5 pr-12 rounded"
+                id="password"
+                placeholder="••••••••"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                tabIndex={-1}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-outline hover:text-primary transition-colors cursor-pointer"
+              >
+                {showPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
-          <button 
-            className="w-full bg-linear-to-r from-[#71d9e4] to-[#1adcf2] text-[#0a4e63] font-headline font-bold py-4 rounded-md shadow-[0_0_15px_rgba(0,238,252,0.2)] hover:from-[#82e3ec] hover:to-[#33e4f7] hover:shadow-[0_0_25px_rgba(0,238,252,0.4)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" 
+          <div className="space-y-2">
+            <label className="block text-xs font-label uppercase tracking-widest text-on-surface-variant" htmlFor="confirmPassword">Re-enter Password</label>
+            <div className="relative">
+              <input
+                className={`w-full bg-surface-container-highest border-0 border-b-2 text-on-surface focus:ring-0 transition-all font-mono py-3 pl-2.5 pr-12 rounded ${
+                  passwordsMismatch
+                    ? 'border-error/60 focus:border-error'
+                    : 'border-outline-variant/30 focus:border-primary'
+                }`}
+                id="confirmPassword"
+                placeholder="••••••••"
+                type={showConfirmPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                aria-invalid={passwordsMismatch}
+                aria-describedby="confirmPassword-error"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((v) => !v)}
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                aria-pressed={showConfirmPassword}
+                tabIndex={-1}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-outline hover:text-primary transition-colors cursor-pointer"
+              >
+                {showConfirmPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
+              </button>
+            </div>
+            {passwordsMismatch && (
+              <p id="confirmPassword-error" className="text-error text-[11px] font-mono">
+                Passwords do not match.
+              </p>
+            )}
+          </div>
+          <button
+            className="w-full bg-linear-to-r from-[#71d9e4] to-[#1adcf2] text-[#0a4e63] font-headline font-bold py-4 rounded-md shadow-[0_0_15px_rgba(0,238,252,0.2)] hover:from-[#82e3ec] hover:to-[#33e4f7] hover:shadow-[0_0_25px_rgba(0,238,252,0.4)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             type="submit"
-            disabled={loading}
+            disabled={loading || passwordsMismatch}
           >
             {loading ? "Creating Account..." : "Create Account"}
           </button>

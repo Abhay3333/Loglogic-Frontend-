@@ -51,7 +51,7 @@ const LevelBadge = ({ level }) => {
 export default function HistoricalLogs() {
   const navigate = useNavigate();
   const outletContext = useOutletContext() || {};
-  const { organizations = [], currentOrg } = outletContext;
+  const { organizations = [], currentOrg, isAccessExpired } = outletContext;
 
   const [selectedLog, setSelectedLog] = useState(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -74,16 +74,16 @@ export default function HistoricalLogs() {
 
   // Fetch available services
   useEffect(() => {
-    if (activeOrgId) {
+    if (activeOrgId && !isAccessExpired) {
       getOrgServices(activeOrgId)
         .then(data => setAvailableServices(data.services || []))
         .catch(err => console.error("Error loading services:", err));
     }
-  }, [activeOrgId]);
+  }, [activeOrgId, isAccessExpired]);
 
   // Fetch logs
   const fetchLogs = useCallback(async (pageToFetch = 1) => {
-    if (!activeOrgId) return;
+    if (!activeOrgId || isAccessExpired) return;
     setIsLoading(true);
 
     try {
@@ -334,9 +334,21 @@ export default function HistoricalLogs() {
                     // Empty State
                     <tr>
                       <td colSpan="4" className="px-4 py-20 text-center text-[#7f8594]">
-                        <LuSearch className="w-8 h-8 mx-auto mb-3 text-[#586173]" />
-                        <p className="text-base font-medium text-[#a8abb3]">No telemetry logs found</p>
-                        <p className="mt-1 text-sm text-[#7f8594]">Connect your applications using an API key from Settings to start recording telemetry.</p>
+                        {isAccessExpired ? (
+                          <>
+                            <LuSearch className="w-8 h-8 mx-auto mb-3 text-red-400" />
+                            <p className="text-base font-medium text-red-300">Workspace Access Expired</p>
+                            <p className="mt-1 text-sm text-[#7f8594] max-w-md mx-auto">
+                              Log queries and inspections are restricted for {currentOrgName}. Please use the "Request Access" button above to submit an access request to the workspace owner.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <LuSearch className="w-8 h-8 mx-auto mb-3 text-[#586173]" />
+                            <p className="text-base font-medium text-[#a8abb3]">No telemetry logs found</p>
+                            <p className="mt-1 text-sm text-[#7f8594]">Connect your applications using an API key from Settings to start recording telemetry.</p>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ) : (

@@ -50,12 +50,12 @@ const JsonLine = ({ k, v }) => {
 const LiveTailPage = () => {
   const navigate = useNavigate();
   const outletContext = useOutletContext() || {};
-  const { organizations = [], currentOrg } = outletContext;
+  const { organizations = [], currentOrg, isAccessExpired } = outletContext;
 
   const feedRef = useRef(null);
   const seenIdsRef = useRef(new Set());
 
-  const [isStreaming, setIsStreaming] = useState(true);
+  const [isStreaming, setIsStreaming] = useState(!isAccessExpired);
   const [query, setQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState('All');
   const [serviceFilter, setServiceFilter] = useState('All');
@@ -69,16 +69,16 @@ const LiveTailPage = () => {
 
   // Load distinct services
   useEffect(() => {
-    if (activeOrgId) {
+    if (activeOrgId && !isAccessExpired) {
       getOrgServices(activeOrgId)
         .then(data => setAvailableServices(data.services || []))
         .catch(err => console.error("Error loading services for live tail:", err));
     }
-  }, [activeOrgId]);
+  }, [activeOrgId, isAccessExpired]);
 
   // Live Tail Poller
   const fetchLiveLogs = useCallback(async () => {
-    if (!activeOrgId || !isStreaming) return;
+    if (!activeOrgId || !isStreaming || isAccessExpired) return;
 
     try {
       const response = await queryLogs({
@@ -169,16 +169,20 @@ const LiveTailPage = () => {
           </div>
 
           <button
+            disabled={isAccessExpired}
+            title={isAccessExpired ? 'Workspace access expired' : (isStreaming ? 'Pause Stream' : 'Resume Stream')}
             className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
-              isStreaming
+              isAccessExpired
+                ? 'opacity-40 cursor-not-allowed border-zinc-800 bg-zinc-900 text-zinc-500'
+                : isStreaming
                 ? 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-600'
                 : 'border-emerald-600/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15'
             }`}
-            onClick={() => setIsStreaming((prev) => !prev)}
+            onClick={() => { if (!isAccessExpired) setIsStreaming((prev) => !prev); }}
             type="button"
           >
-            {isStreaming ? <FiPause /> : <FiPlay />}
-            {isStreaming ? 'Pause Stream' : 'Resume Stream'}
+            {isStreaming && !isAccessExpired ? <FiPause /> : <FiPlay />}
+            {isAccessExpired ? 'Stream Restricted' : (isStreaming ? 'Pause Stream' : 'Resume Stream')}
           </button>
 
           <label className="relative min-w-55 flex-1">

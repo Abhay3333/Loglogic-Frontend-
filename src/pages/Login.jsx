@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { FaCheck, FaGithub, FaGoogle, FaHubspot, FaTerminal } from 'react-icons/fa'
+import { FaCheck, FaEye, FaEyeSlash, FaGithub, FaGoogle, FaHubspot, FaTerminal } from 'react-icons/fa'
 import { supabase } from '../lib/supabase'
 
 const Login = () => {
@@ -10,6 +10,7 @@ const Login = () => {
   const redirectTarget = searchParams.get('redirect') || '/app/dashboard'
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
   const [successMsg, setSuccessMsg] = useState("")
   const [loading, setLoading] = useState(false)
@@ -139,15 +140,27 @@ const Login = () => {
             <label className="block text-[10px] uppercase tracking-widest font-bold text-outline-variant" htmlFor="password">Security Key</label>
             <a className="text-[10px] uppercase tracking-widest font-bold text-primary hover:text-primary-fixed transition-colors" href="#">Forgot Password?</a>
           </div>
-          <input 
-            className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant py-3 px-4 text-on-surface placeholder:text-outline focus:ring-0 focus:border-primary focus:bg-surface-bright transition-all font-mono text-sm" 
-            id="password" 
-            placeholder="••••••••••••" 
-            type="password" 
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <div className="relative">
+            <input
+              className="w-full bg-surface-container-highest border-0 border-b-2 border-outline-variant py-3 pl-4 pr-12 text-on-surface placeholder:text-outline focus:ring-0 focus:border-primary focus:bg-surface-bright transition-all font-mono text-sm"
+              id="password"
+              placeholder="••••••••••••"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              tabIndex={-1}
+              className="absolute inset-y-0 right-0 flex items-center px-4 text-outline hover:text-primary transition-colors cursor-pointer"
+            >
+              {showPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
         <button 
           className="w-full bg-linear-to-r from-[#71d9e4] to-[#1adcf2] text-[#0a4e63] py-4 rounded-lg text-on-primary-container font-headline font-bold text-sm tracking-widest uppercase hover:brightness-110 active:scale-[0.98] transition-all glow-primary disabled:opacity-50 disabled:cursor-not-allowed"

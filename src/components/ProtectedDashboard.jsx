@@ -2,12 +2,17 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { getOrganizations } from '../api/organization';
+import { getMyAccess } from '../api/access';
+import AccessExpiredBanner from './AccessExpiredBanner';
+import RequestAccessModal from './RequestAccessModal';
 
 export default function ProtectedDashboard() {
   const [user, setUser] = useState(null);
   const [organizations, setOrganizations] = useState([]);
   const [currentOrg, setCurrentOrg] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessStatus, setAccessStatus] = useState(null);
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -30,6 +35,19 @@ export default function ProtectedDashboard() {
     } catch (err) {
       console.error("Error checking workspace status via API:", err);
       return [];
+    }
+  }, []);
+
+  const fetchAccessStatus = useCallback(async (orgId) => {
+    if (!orgId) {
+      setAccessStatus(null);
+      return;
+    }
+    try {
+      const statusData = await getMyAccess(orgId);
+      setAccessStatus(statusData);
+    } catch (err) {
+      console.error("Error fetching access status:", err);
     }
   }, []);
 
@@ -72,6 +90,22 @@ export default function ProtectedDashboard() {
     checkUserAndOrg();
   }, [navigate, location.pathname, fetchOrgs]);
 
+  // Whenever the active workspace changes, check its detailed access status
+  useEffect(() => {
+    if (currentOrg?.id) {
+      fetchAccessStatus(currentOrg.id);
+    }
+  }, [currentOrg?.id, fetchAccessStatus]);
+
+  // An active workspace is considered expired if either the organization list
+  // or the direct status check flags it as expired.
+  const isAccessExpired = Boolean(
+    currentOrg?.isExpired ||
+    accessStatus?.membership?.expired
+  );
+
+  const latestRequest = accessStatus?.request || null;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col justify-center items-center font-mono text-primary">
@@ -82,15 +116,50 @@ export default function ProtectedDashboard() {
   }
 
   return (
-    <Outlet 
-      context={{ 
-        user, 
-        organizations, 
-        currentOrg, 
-        setCurrentOrg, 
-        refreshOrganizations: fetchOrgs 
-      }} 
-    />
+    <div className="min-h-screen flex flex-col bg-background text-on-surface">
+      {/* Expired Access Alert Bar (shows across all app views when expired) */}
+      {isAccessExpired && (
+        <AccessExpiredBanner
+          orgName={currentOrg?.name || 'Workspace'}
+          accessExpiresAt={currentOrg?.accessExpiresAt || accessStatus?.membership?.accessExpiresAt}
+          latestRequest={latestRequest}
+          onRequestAccess={() => setRequestModalOpen(true)}
+        />
+      )}
+
+      {/* Request Access Modal */}
+      <RequestAccessModal
+        isOpen={requestModalOpen}
+        onClose={() => setRequestModalOpen(false)}
+        orgId={currentOrg?.id}
+        orgName={currentOrg?.name}
+        userEmail={user?.email}
+        currentRole={currentOrg?.role}
+        onSubmitted={() => {
+          if (currentOrg?.id) fetchAccessStatus(currentOrg.id);
+        }}
+      />
+
+      <div className="flex-1 min-h-0 flex flex-col">
+        <Outlet 
+          context={{ 
+            user, 
+            organizations, 
+            currentOrg, 
+            setCurrentOrg, 
+            refreshOrganizations: fetchOrgs,
+            isAccessExpired,
+            accessStatus,
+            latestRequest,
+            openRequestAccess: () => setRequestModalOpen(true),
+            refreshAccessStatus: () => {
+              if (currentOrg?.id) fetchAccessStatus(currentOrg.id);
+            }
+          }} 
+        />
+      </div>
+    </div>
   );
 }
+
 

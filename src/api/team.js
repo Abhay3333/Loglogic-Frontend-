@@ -1,7 +1,7 @@
 import axios from "axios";
 import { supabase } from "../lib/supabase";
 
-const BASE_URL = import.meta.env.VITE_API_DEPLOYED_URL || import.meta.env.VITE_API_LOCAL_URL || "http://localhost:5000";
+const BASE_URL =  import.meta.env.VITE_API_LOCAL_URL || "http://localhost:5000";
 
 const getAuthToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -97,3 +97,23 @@ export const cancelInvite = async (orgId, inviteId) => {
     });
     return response.data;
 };
+
+/**
+ * Update an active member's role and/or temporary access expiry
+ */
+export const updateWorkspaceMember = async (userId, { orgId, role, accessExpiresAt }) => {
+    const token = await getAuthToken();
+
+    const response = await axios.patch(`${BASE_URL}/v1/organizations/members/${encodeURIComponent(userId)}`, {
+        orgId,
+        role,
+        accessExpiresAt
+    }, {
+        headers: {
+            Authorization: `Bearer ${token}`
+        },
+        withCredentials: true
+    });
+    return response.data;
+};
+
