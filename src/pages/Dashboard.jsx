@@ -3,6 +3,7 @@ import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getApiKeys } from '../api/apiKey'
 import { getLogStats } from '../api/logs'
+import { getBilling } from '../api/billing'
 import {
   Area,
   AreaChart,
@@ -62,6 +63,7 @@ const DashboardPage = () => {
   const [keysLoading, setKeysLoading] = useState(true)
   const [statsLoading, setStatsLoading] = useState(true)
   const [stats, setStats] = useState(null)
+  const [quota, setQuota] = useState({ written: 0, limit: null, loaded: false })
 
   useEffect(() => {
     if (user?.id) {
@@ -99,6 +101,19 @@ const DashboardPage = () => {
       })
       .catch((err) => console.error("Error loading log stats:", err))
       .finally(() => setStatsLoading(false));
+
+    getBilling(activeOrgId)
+      .then((data) => {
+        setQuota({
+          written: data?.usage?.written || 0,
+          limit: data?.usage?.limit ?? null,
+          loaded: true
+        })
+      })
+      .catch((err) => {
+        console.error("Error loading plan quota:", err)
+        setQuota((current) => ({ ...current, loaded: true }))
+      });
   };
 
   useEffect(() => {
@@ -120,9 +135,12 @@ const DashboardPage = () => {
 
   const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
 
-  const totalLogs = stats?.totalLogs || 0;
-  const usageLimit = 1000000;
-  const usagePercent = useMemo(() => Math.round((totalLogs / usageLimit) * 100) || 0, [totalLogs, usageLimit]);
+  const periodLogs = quota.written || 0;
+  const usageLimit = quota.limit;
+  const usagePercent = useMemo(() => {
+    if (!usageLimit) return 0;
+    return Math.round((periodLogs / usageLimit) * 100) || 0;
+  }, [periodLogs, usageLimit]);
   const usageBarClass = usagePercent > 80
     ? 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.35)]'
     : 'bg-[#00F0FF] shadow-[0_0_12px_rgba(0,240,255,0.35)]';
@@ -239,9 +257,9 @@ const DashboardPage = () => {
           <article className="rounded-2xl border border-[#44484f]/25 bg-[#11161d] p-5 shadow-[0_0_20px_rgba(0,0,0,0.2)]">
             <p className="text-xs uppercase tracking-widest text-[#7f8594]">Total Ingested</p>
             <p className="mt-3 text-2xl font-semibold text-white">
-              {statsLoading ? '...' : totalLogs.toLocaleString()} / {usageLimit.toLocaleString()} logs
+              {!quota.loaded ? '...' : `${periodLogs.toLocaleString()} / ${usageLimit == null ? 'unlimited' : usageLimit.toLocaleString()} logs`}
             </p>
-            <p className="mt-1 text-sm text-[#a8abb3]">Past 24h telemetry events</p>
+            <p className="mt-1 text-sm text-[#a8abb3]">Logs in this billing period</p>
             <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-[#1a2027]">
               <div className={`h-2 ${usageBarClass}`} style={{ width: `${Math.min(usagePercent, 100)}%` }} />
             </div>
@@ -376,6 +394,14 @@ const DashboardPage = () => {
               </Link>
               <Link className="flex w-full items-center justify-between rounded-lg border border-[#44484f]/40 bg-[#0a0e14] px-3 py-2 text-sm text-[#f1f3fc] hover:border-[#8ff5ff]/40 transition-colors" to="/app/settings">
                 Organization Settings & Keys
+                <FiExternalLink className="text-[#7f8594]" />
+              </Link>
+              <Link className="flex w-full items-center justify-between rounded-lg border border-[#44484f]/40 bg-[#0a0e14] px-3 py-2 text-sm text-[#f1f3fc] hover:border-[#8ff5ff]/40 transition-colors" to="/app/integrations">
+                Integrations & Webhooks
+                <FiExternalLink className="text-[#7f8594]" />
+              </Link>
+              <Link className="flex w-full items-center justify-between rounded-lg border border-[#44484f]/40 bg-[#0a0e14] px-3 py-2 text-sm text-[#f1f3fc] hover:border-[#8ff5ff]/40 transition-colors" to="/app/incidents">
+                Incident Timeline
                 <FiExternalLink className="text-[#7f8594]" />
               </Link>
               <Link className="flex w-full items-center justify-between rounded-lg border border-[#44484f]/40 bg-[#0a0e14] px-3 py-2 text-sm text-[#f1f3fc] hover:border-[#8ff5ff]/40 transition-colors" to="/docs">

@@ -14,11 +14,15 @@ import PrivacyPage from './pages/Privacy'
 import TermsPage from './pages/Terms'
 import DocsPage from './pages/Docs'
 import ChangelogPage from './pages/Changelog'
+import StatusPage from './pages/Status'
 import DashboardPage from './pages/Dashboard'
 import LiveTailPage from './pages/LiveTail'
 import HistoricalLogsPage from './pages/HistoricalLogs'
 import AlertsPage from './pages/Alerts'
+import IntegrationsPage from './pages/Integrations'
+import IncidentsPage from './pages/Incidents'
 import SettingsPage from './pages/Settings'
+import AppPricing from './pages/AppPricing'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminInfrastructure from './pages/AdminInfrastructure'
 import AdminSecurityBilling from './pages/AdminSecurityBilling'
@@ -118,6 +122,7 @@ const AppContent = () => {
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/changelog" element={<ChangelogPage />} />
+        <Route path="/status" element={<StatusPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/invite" element={<AcceptInvite />} />
@@ -129,7 +134,10 @@ const AppContent = () => {
           <Route path="live" element={<LiveTailPage />} />
           <Route path="logs" element={<HistoricalLogsPage />} />
           <Route path="alerts" element={<AlertsPage />} />
+          <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="incidents" element={<IncidentsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="pricing" element={<AppPricing />} />
           <Route path="onboarding" element={<Onboarding />} />
         </Route>
         <Route

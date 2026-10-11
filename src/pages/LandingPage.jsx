@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { LuTerminal, LuImport, LuShare2, LuBellRing, LuDatabase, LuArrowLeftRight, LuCode, LuShieldCheck, LuCheck } from 'react-icons/lu'
 
 const LandingPage = () => {
@@ -157,17 +158,17 @@ const LandingPage = () => {
       <div className="grid md:grid-cols-3 gap-8">
         {/* Hobby */}
         <div className="p-8 rounded-lg border border-white/10 bg-[#0a0e14] flex flex-col">
-          <h4 className="font-headline text-xl font-bold mb-2 text-white">Hobby</h4>
+          <h4 className="font-headline text-xl font-bold mb-2 text-white">Free</h4>
           <div className="mb-6">
             <span className="text-4xl font-bold text-white">$0</span>
             <span className="text-[#a8abb3] text-sm"> / month</span>
           </div>
           <ul className="space-y-4 mb-8 text-sm text-[#a8abb3] grow">
-            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> 5GB Monthly Logs</li>
-            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> 3-Day Retention</li>
-            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> Community Support</li>
+            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> 50,000 logs / month</li>
+            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> 2 seats · 3-day retention</li>
+            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> 1 API key</li>
           </ul>
-          <button className="w-full py-3 border border-white/20 text-white rounded font-bold hover:bg-white/5 transition-colors">Start for Free</button>
+          <Link to="/pricing" className="w-full py-3 border border-white/20 text-white rounded font-bold hover:bg-white/5 transition-colors text-center">See pricing</Link>
         </div>
         {/* Pro */}
         <div className="p-8 rounded-lg border-2 border-[#8ff5ff] bg-[#0a0e14] flex flex-col relative transform lg:scale-105 shadow-2xl shadow-[#8ff5ff]/10">
@@ -178,26 +179,25 @@ const LandingPage = () => {
             <span className="text-[#a8abb3] text-sm"> / month</span>
           </div>
           <ul className="space-y-4 mb-8 text-sm text-white grow font-medium">
-            <li className="flex items-center gap-2"><LuCheck className="text-[#8ff5ff] text-lg" /> 500GB Monthly Logs</li>
-            <li className="flex items-center gap-2"><LuCheck className="text-[#8ff5ff] text-lg" /> 30-Day Retention</li>
-            <li className="flex items-center gap-2"><LuCheck className="text-[#8ff5ff] text-lg" /> Python Alert Engine</li>
-            <li className="flex items-center gap-2"><LuCheck className="text-[#8ff5ff] text-lg" /> Priority Discord Support</li>
+            <li className="flex items-center gap-2"><LuCheck className="text-[#8ff5ff] text-lg" /> 2,000,000 logs / month</li>
+            <li className="flex items-center gap-2"><LuCheck className="text-[#8ff5ff] text-lg" /> 12 seats, then $10 each</li>
+            <li className="flex items-center gap-2"><LuCheck className="text-[#8ff5ff] text-lg" /> 30-day retention and alerts</li>
           </ul>
-          <button className="w-full py-3 bg-linear-to-r from-[#8ff5ff] to-[#00eefc] text-[#005359] rounded font-bold hover:brightness-110 transition-colors cta-glow">Upgrade to Pro</button>
+          <Link to="/pricing" className="w-full py-3 bg-linear-to-r from-[#8ff5ff] to-[#00eefc] text-[#005359] rounded font-bold hover:brightness-110 transition-colors cta-glow text-center">See pricing</Link>
         </div>
         {/* Enterprise */}
         <div className="p-8 rounded-lg border border-white/10 bg-[#0a0e14] flex flex-col">
           <h4 className="font-headline text-xl font-bold mb-2 text-white">Enterprise</h4>
           <div className="mb-6">
-            <span className="text-4xl font-bold text-white">Custom</span>
+            <span className="text-4xl font-bold text-white">$299</span>
+            <span className="text-[#a8abb3] text-sm"> / month</span>
           </div>
           <ul className="space-y-4 mb-8 text-sm text-[#a8abb3] grow">
-            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> Unlimited Logging</li>
-            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> Custom Retention Policies</li>
-            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> Single Sign-On (SAML)</li>
-            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> Dedicated Success Manager</li>
+            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> Unlimited logs and seats</li>
+            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> 365-day retention</li>
+            <li className="flex items-center gap-2"><LuCheck className="text-[#00F0FF] text-lg" /> Unlimited API keys</li>
           </ul>
-          <button className="w-full py-3 border border-white/20 text-white rounded font-bold hover:bg-white/5 transition-colors">Contact Sales</button>
+          <Link to="/pricing" className="w-full py-3 border border-white/20 text-white rounded font-bold hover:bg-white/5 transition-colors text-center">See pricing</Link>
         </div>
       </div>
     </section>

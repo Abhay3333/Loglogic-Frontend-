@@ -38,6 +38,9 @@ const Login = () => {
     
     // Set localStorage auth
     localStorage.setItem('loglogic_auth', 'true')
+    // Flag a fresh login so the dashboard records an auth.login audit event once
+    // it has an org context (login itself is not org-scoped).
+    sessionStorage.setItem('loglogic_pending_login_audit', '1')
 
     setTimeout(() => {
       navigate(redirectTarget)

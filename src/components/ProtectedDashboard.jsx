@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { getOrganizations } from '../api/organization';
 import { getMyAccess } from '../api/access';
+import { recordAuditEvent } from '../api/audit';
 import AccessExpiredBanner from './AccessExpiredBanner';
 import RequestAccessModal from './RequestAccessModal';
 
@@ -37,6 +38,15 @@ export default function ProtectedDashboard() {
       return [];
     }
   }, []);
+
+  // Record a one-time auth.login audit event once we have an org context.
+  // The flag is set by the Login page so this fires on a real login, not every mount.
+  useEffect(() => {
+    if (!currentOrg?.id) return;
+    if (sessionStorage.getItem('loglogic_pending_login_audit') !== '1') return;
+    sessionStorage.removeItem('loglogic_pending_login_audit');
+    recordAuditEvent(currentOrg.id, 'auth.login').catch(() => {});
+  }, [currentOrg?.id]);
 
   const fetchAccessStatus = useCallback(async (orgId) => {
     if (!orgId) {

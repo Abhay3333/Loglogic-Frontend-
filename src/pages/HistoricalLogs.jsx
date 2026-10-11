@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { queryLogs, getOrgServices } from '../api/logs';
+import { queryLogs, getOrgServices, getSavedQueries, createSavedQuery, exportLogsCsv, getLogStats } from '../api/logs';
+import { listIntegrations, createIssueFromLog } from '../api/integrations';
+import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import {
   LuSearch,
   LuDownload,
@@ -16,7 +18,13 @@ import {
   LuCalendar,
   LuArrowLeft,
   LuRefreshCw,
-  LuCheck
+  LuCheck,
+  LuBookmark,
+  LuChartColumn,
+  LuSave,
+  LuExternalLink,
+  LuPlus,
+  LuTicket
 } from 'react-icons/lu';
 
 // Helper components
@@ -69,8 +77,58 @@ export default function HistoricalLogs() {
   const [logs, setLogs] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
 
+  // Phase 13 Features
+  const [savedQueries, setSavedQueries] = useState([]);
+  const [isChartVisible, setIsChartVisible] = useState(false);
+  const [chartData, setChartData] = useState([]);
+  const [isSavingQuery, setIsSavingQuery] = useState(false);
+  const [newQueryName, setNewQueryName] = useState('');
+  const [showSaveQueryModal, setShowSaveQueryModal] = useState(false);
+
   const activeOrgId = currentOrg?.id || (organizations.length > 0 ? organizations[0].id : null);
   const currentOrgName = currentOrg?.name || (organizations.length > 0 ? organizations[0].name : 'Workspace');
+  const activeOrg = currentOrg || organizations[0] || null;
+  const canManage = activeOrg?.role === 'owner' || activeOrg?.role === 'admin';
+
+  // Issue-tracker integrations for "Create Issue" from a log.
+  const [issueIntegrations, setIssueIntegrations] = useState([]);
+  const [issueModalOpen, setIssueModalOpen] = useState(false);
+  const [issueIntegrationId, setIssueIntegrationId] = useState('');
+  const [issueBusy, setIssueBusy] = useState(false);
+  const [issueResult, setIssueResult] = useState(null);
+  const [issueError, setIssueError] = useState('');
+
+  useEffect(() => {
+    if (activeOrgId && !isAccessExpired && canManage) {
+      listIntegrations(activeOrgId)
+        .then((res) => setIssueIntegrations((res.integrations || []).filter((i) => ['jira', 'linear', 'github'].includes(i.type) && i.is_active !== false)))
+        .catch(() => setIssueIntegrations([]));
+    }
+  }, [activeOrgId, isAccessExpired, canManage]);
+
+  const openIssueModal = () => {
+    setIssueError('');
+    setIssueResult(null);
+    setIssueIntegrationId(issueIntegrations[0]?.id || '');
+    setIssueModalOpen(true);
+  };
+
+  const submitIssue = async () => {
+    if (!issueIntegrationId || !selectedLog) return;
+    setIssueBusy(true);
+    setIssueError('');
+    try {
+      const res = await createIssueFromLog(activeOrgId, {
+        integrationId: issueIntegrationId,
+        logId: selectedLog._id || selectedLog.id
+      });
+      setIssueResult(res.url || 'created');
+    } catch (err) {
+      setIssueError(err?.response?.data?.error || 'Could not create the issue.');
+    } finally {
+      setIssueBusy(false);
+    }
+  };
 
   // Fetch available services
   useEffect(() => {
@@ -114,9 +172,36 @@ export default function HistoricalLogs() {
     }
   }, [activeOrgId, timeRange, selectedLevels, selectedService, searchQuery]);
 
+  const loadSavedQueries = useCallback(async () => {
+    if (activeOrgId && !isAccessExpired) {
+      try {
+        const res = await getSavedQueries(activeOrgId);
+        setSavedQueries(res.savedQueries || []);
+      } catch (err) {
+        console.error("Error fetching saved queries:", err);
+      }
+    }
+  }, [activeOrgId, isAccessExpired]);
+
+  const fetchChartData = useCallback(async () => {
+    if (activeOrgId && !isAccessExpired && isChartVisible) {
+      try {
+        const res = await getLogStats({ orgId: activeOrgId, timeRange });
+        setChartData(res.volumeTimeline || []);
+      } catch (err) {
+        console.error("Error fetching chart data:", err);
+      }
+    }
+  }, [activeOrgId, isAccessExpired, isChartVisible, timeRange]);
+
   useEffect(() => {
     fetchLogs(1);
-  }, [fetchLogs]);
+    loadSavedQueries();
+  }, [fetchLogs, loadSavedQueries]);
+
+  useEffect(() => {
+    fetchChartData();
+  }, [fetchChartData]);
 
   const handleRowClick = (log) => {
     setSelectedLog(log);
@@ -150,23 +235,63 @@ export default function HistoricalLogs() {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const exportCSV = () => {
-    if (logs.length === 0) return;
-    const headers = ['Timestamp', 'Level', 'Service', 'Message'];
-    const rows = logs.map(l => [
-      `"${new Date(l.timestamp).toISOString()}"`,
-      `"${l.level}"`,
-      `"${l.service}"`,
-      `"${(l.message || '').replace(/"/g, '""')}"`
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `loglogic_${activeOrgId}_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportCSV = async () => {
+    try {
+      let startDate = null;
+      const now = new Date();
+      if (timeRange === '15m') startDate = new Date(now.getTime() - 15 * 60 * 1000).toISOString();
+      else if (timeRange === '1h') startDate = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+      else if (timeRange === '24h') startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+      else if (timeRange === '7d') startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      else if (timeRange === '30d') startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const blob = await exportLogsCsv({
+        orgId: activeOrgId,
+        levels: selectedLevels.map(l => l.toLowerCase()),
+        service: selectedService || undefined,
+        search: searchQuery || undefined,
+        startDate: startDate || undefined
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `loglogic_${activeOrgId}_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Export error:", err);
+      alert(err.message);
+    }
+  };
+
+  const handleSaveQuery = async () => {
+    if (!newQueryName.trim()) return;
+    setIsSavingQuery(true);
+    try {
+      await createSavedQuery({
+        orgId: activeOrgId,
+        name: newQueryName,
+        query_filter: { timeRange, selectedLevels, selectedService, searchQuery }
+      });
+      setShowSaveQueryModal(false);
+      setNewQueryName('');
+      loadSavedQueries();
+    } catch (err) {
+      console.error("Error saving query:", err);
+    } finally {
+      setIsSavingQuery(false);
+    }
+  };
+
+  const applySavedQuery = (query) => {
+    const filter = query.query_filter || {};
+    setTimeRange(filter.timeRange || '24h');
+    setSelectedLevels(filter.selectedLevels || ['ERROR', 'WARN', 'INFO', 'DEBUG']);
+    setSelectedService(filter.selectedService || '');
+    setSearchQuery(filter.searchQuery || '');
   };
 
   const formatDate = (dateString) => {
@@ -201,6 +326,13 @@ export default function HistoricalLogs() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsChartVisible(!isChartVisible)}
+                className={`p-2 rounded-md transition-colors cursor-pointer ${isChartVisible ? 'text-[#00eefc] bg-[#00eefc]/10' : 'text-[#7f8594] hover:text-[#8ff5ff] hover:bg-[#8ff5ff]/10'}`}
+                title="Toggle Log Volume Chart"
+              >
+                <LuChartColumn className="w-5 h-5" />
+              </button>
               <button 
                 onClick={exportCSV}
                 className="p-2 text-[#7f8594] hover:text-[#8ff5ff] hover:bg-[#8ff5ff]/10 rounded-md transition-colors cursor-pointer" 
@@ -230,6 +362,31 @@ export default function HistoricalLogs() {
           </div>
 
           <div className="flex flex-wrap gap-4 items-center">
+            
+            {/* Saved Queries Dropdown */}
+            <div className="relative group z-30">
+              <button className="bg-[#11161d] border border-[#44484f]/30 text-[#f1f3fc] text-sm rounded-md px-3 py-2 flex items-center gap-2 hover:border-[#44484f]/60 transition-colors cursor-pointer">
+                <LuBookmark className="w-4 h-4 text-[#00eefc]" />
+                Saved Queries
+              </button>
+              <div className="absolute top-full left-0 mt-2 w-56 bg-[#11161d] border border-[#44484f]/40 rounded-xl shadow-[0_0_20px_rgba(0,0,0,0.5)] p-2 hidden group-hover:block z-50">
+                {savedQueries.length === 0 ? (
+                  <div className="text-xs text-[#7f8594] p-2 text-center">No saved queries.</div>
+                ) : (
+                  savedQueries.map(q => (
+                    <div key={q.id} onClick={() => applySavedQuery(q)} className="px-2 py-1.5 hover:bg-[#1a2027] rounded-lg cursor-pointer transition-colors text-sm text-[#f1f3fc] truncate" title={q.name}>
+                      {q.name}
+                    </div>
+                  ))
+                )}
+                <div className="border-t border-[#44484f]/40 mt-2 pt-2">
+                  <button onClick={() => setShowSaveQueryModal(true)} className="w-full flex items-center justify-center gap-2 text-xs text-[#00eefc] hover:bg-[#00eefc]/10 px-2 py-1.5 rounded-lg transition-colors cursor-pointer">
+                    <LuSave className="w-4 h-4" /> Save Current View
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Time Range Picker */}
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -250,18 +407,37 @@ export default function HistoricalLogs() {
             </div>
 
             {/* Text Search */}
-            <div className="flex-1 relative min-w-[200px]">
+            <div className="flex-1 relative min-w-[200px] group z-20">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <LuSearch className="w-4 h-4 text-[#7f8594]" />
               </div>
               <input
                 type="text"
-                placeholder="Search log messages or microservice..."
-                className="bg-[#11161d] border border-[#44484f]/30 text-[#f1f3fc] text-sm rounded-md focus:border-[#8ff5ff]/50 focus:ring-1 focus:ring-[#8ff5ff]/50 focus:outline-none block w-full pl-10 p-2 placeholder-[#7f8594] transition-colors hover:border-[#44484f]/60"
+                placeholder='Search logs or use filters (e.g. metadata.userId:"123")'
+                className="bg-[#11161d] border border-[#44484f]/30 text-[#f1f3fc] text-sm rounded-md focus:border-[#8ff5ff]/50 focus:ring-1 focus:ring-[#8ff5ff]/50 focus:outline-none block w-full pl-10 pr-10 py-2 placeholder-[#7f8594] transition-colors hover:border-[#44484f]/60"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
+              {searchQuery && (
+                <button 
+                  onClick={() => { setSearchQuery(''); fetchLogs(1); }}
+                  className="absolute right-8 top-1/2 -translate-y-1/2 text-[#7f8594] hover:text-[#f1f3fc] cursor-pointer"
+                >
+                  <LuX className="w-4 h-4" />
+                </button>
+              )}
+              {/* Search Info Tooltip */}
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7f8594] hover:text-[#00eefc] cursor-help">
+                <LuInfo className="w-4 h-4" />
+                <div className="absolute right-0 top-full mt-2 w-72 bg-[#11161d] border border-[#44484f]/40 rounded-xl shadow-[0_0_20px_rgba(0,0,0,0.8)] p-3 hidden group-hover:block z-50 text-xs text-[#a8abb3] font-mono leading-relaxed pointer-events-none">
+                  <div className="text-[#f1f3fc] font-bold mb-1 font-sans">Advanced Search Examples:</div>
+                  <div className="mb-1"><span className="text-[#00eefc]">metadata.userId:</span>"usr_123"</div>
+                  <div className="mb-1"><span className="text-[#f87171]">metadata.http.status:</span>&gt;=500</div>
+                  <div className="mb-1"><span className="text-[#a78bfa]">service:</span>payment-worker</div>
+                  <div className="mt-2 text-opacity-80">Use quotes for strings. Supported operators: <code>: = &gt; &gt;= &lt; &lt;= !=</code></div>
+                </div>
+              </div>
             </div>
 
             {/* Multi-Select: Level */}
@@ -305,7 +481,37 @@ export default function HistoricalLogs() {
 
       {/* 2. Main Data Table */}
       <main className="flex-1 overflow-auto relative custom-scrollbar p-6">
-        <div className="max-w-7xl mx-auto h-full flex flex-col">
+        <div className="max-w-7xl mx-auto h-full flex flex-col gap-4">
+          
+          {/* Chart Section */}
+          {isChartVisible && (
+            <div className="h-48 bg-[#11161d] rounded-2xl border border-[#44484f]/25 p-4 shadow-[0_0_20px_rgba(0,0,0,0.2)]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#00eefc" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#00eefc" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorError" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#f87171" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#44484f" vertical={false} opacity={0.3} />
+                  <XAxis dataKey="time" stroke="#7f8594" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#7f8594" fontSize={10} tickLine={false} axisLine={false} width={30} />
+                  <RechartsTooltip 
+                    contentStyle={{ backgroundColor: '#11161d', borderColor: '#44484f', borderRadius: '8px', fontSize: '12px', color: '#f1f3fc' }}
+                    itemStyle={{ color: '#f1f3fc' }}
+                  />
+                  <Area type="monotone" dataKey="total" stroke="#00eefc" fillOpacity={1} fill="url(#colorTotal)" name="Total Logs" />
+                  <Area type="monotone" dataKey="ERROR" stroke="#f87171" fillOpacity={1} fill="url(#colorError)" name="Errors" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
           <div className="rounded-2xl border border-[#44484f]/25 overflow-hidden bg-[#11161d] shadow-[0_0_20px_rgba(0,0,0,0.2)] flex-1 flex flex-col">
             <div className="flex-1 overflow-auto custom-scrollbar">
               <table className="w-full text-left text-sm whitespace-nowrap">
@@ -492,9 +698,95 @@ export default function HistoricalLogs() {
               </div>
 
             </div>
+
+            {canManage && issueIntegrations.length > 0 && (
+              <div className="flex-none border-t border-[#44484f]/25 p-4">
+                <button
+                  onClick={openIssueModal}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-[#8ff5ff]/30 bg-[#00eefc]/10 px-4 py-2.5 text-sm font-medium text-[#8ff5ff] hover:bg-[#00eefc]/20 transition-colors cursor-pointer"
+                  type="button"
+                >
+                  <LuTicket className="w-4 h-4" /> Create Issue from this log
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
+
+      {/* Create Issue Modal */}
+      {issueModalOpen && (
+        <div className="fixed inset-0 bg-[#0a0e14]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !issueBusy && setIssueModalOpen(false)}>
+          <div className="bg-[#11161d] border border-[#44484f]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_40px_rgba(0,0,0,0.5)]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-[#f1f3fc] mb-4 flex items-center gap-2"><LuTicket className="w-5 h-5 text-[#8ff5ff]" /> Create Issue</h3>
+            {issueResult ? (
+              <div className="space-y-4">
+                <p className="text-sm text-[#86efac]">Issue created successfully.</p>
+                {issueResult !== 'created' && (
+                  <a href={issueResult} target="_blank" rel="noreferrer" className="text-sm text-[#8ff5ff] hover:underline inline-flex items-center gap-1 break-all">
+                    {issueResult} <LuExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                  </a>
+                )}
+                <div className="flex justify-end">
+                  <button onClick={() => setIssueModalOpen(false)} className="px-4 py-2 text-sm text-[#a8abb3] hover:text-[#f1f3fc]" type="button">Close</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-[#a8abb3] mb-3">File a pre-filled issue in your connected tracker with this log's message, level, service, and a LogLogic link.</p>
+                {issueError && <p className="text-sm text-[#fca5a5] mb-3">{issueError}</p>}
+                <label className="block text-sm text-[#a8abb3] mb-4">
+                  Tracker
+                  <select className="mt-1.5 w-full bg-[#0a0e14] border border-[#44484f]/40 text-[#f1f3fc] text-sm rounded-lg p-2.5 outline-none focus:border-[#8ff5ff]"
+                    value={issueIntegrationId} onChange={(e) => setIssueIntegrationId(e.target.value)}>
+                    {issueIntegrations.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.type})</option>)}
+                  </select>
+                </label>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setIssueModalOpen(false)} className="px-4 py-2 text-sm text-[#a8abb3] hover:text-[#f1f3fc]" type="button">Cancel</button>
+                  <button onClick={submitIssue} disabled={issueBusy || !issueIntegrationId} className="bg-[#00eefc] hover:bg-[#8ff5ff] text-[#0a0e14] px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2" type="button">
+                    {issueBusy ? <LuRefreshCw className="w-4 h-4 animate-spin" /> : <LuPlus className="w-4 h-4" />} Create
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Save Query Modal */}
+      {showSaveQueryModal && (
+        <div className="fixed inset-0 bg-[#0a0e14]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#11161d] border border-[#44484f]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <h3 className="text-lg font-bold text-[#f1f3fc] mb-4">Save Current View</h3>
+            <p className="text-sm text-[#a8abb3] mb-4">Save your current search, time range, and filters for quick access later.</p>
+            <input
+              type="text"
+              placeholder="e.g. Payment Webhook Failures"
+              className="bg-[#0a0e14] border border-[#44484f]/30 text-[#f1f3fc] text-sm rounded-lg focus:border-[#00eefc] focus:outline-none block w-full p-2.5 mb-5"
+              value={newQueryName}
+              onChange={(e) => setNewQueryName(e.target.value)}
+              autoFocus
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowSaveQueryModal(false)}
+                className="px-4 py-2 text-sm text-[#a8abb3] hover:text-[#f1f3fc] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveQuery}
+                disabled={isSavingQuery || !newQueryName.trim()}
+                className="bg-[#00eefc]/10 text-[#00eefc] border border-[#00eefc]/30 hover:bg-[#00eefc]/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-2"
+              >
+                {isSavingQuery ? <LuRefreshCw className="w-4 h-4 animate-spin" /> : <LuSave className="w-4 h-4" />}
+                Save Query
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

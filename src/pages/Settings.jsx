@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import BillingSettings from '../components/BillingSettings';
 import { getApiKeys, createApiKey, revokeApiKey } from '../api/apiKey';
 import {
   getWorkspaceMembers,
@@ -15,6 +16,7 @@ import {
   transferOwnership,
   getWorkspaceActivity
 } from '../api/access';
+import { listAuditLogs, exportAuditCsv } from '../api/audit';
 import {
   LuSettings,
   LuKey,
@@ -61,7 +63,10 @@ export default function SettingsPage() {
     refreshAccessStatus
   } = outletContext;
 
-  const [activeTab, setActiveTab] = useState('api-keys');
+  const [searchParams] = useSearchParams();
+  const billingNotice = searchParams.get('billing');
+  const openBilling = billingNotice === 'success' || billingNotice === 'cancelled' || searchParams.get('tab') === 'billing';
+  const [activeTab, setActiveTab] = useState(openBilling ? 'billing' : 'api-keys');
 
   // API Keys State
   const [keys, setKeys] = useState([]);
@@ -149,6 +154,15 @@ export default function SettingsPage() {
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState(null);
   const [activityFilter, setActivityFilter] = useState('all'); // all | requests | members | ownership
+
+  // Audit Log State (Phase 15)
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState(null);
+  const [auditAction, setAuditAction] = useState('');
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPagination, setAuditPagination] = useState({ page: 1, totalPages: 1, total: 0 });
+  const [auditExporting, setAuditExporting] = useState(false);
 
   const activeOrgId = currentOrg?.id || (organizations.length > 0 ? organizations[0].id : null);
   const activeOrgName = currentOrg?.name || (organizations.length > 0 ? organizations[0].name : 'Workspace');
@@ -245,6 +259,50 @@ export default function SettingsPage() {
     }
     fetchActivity();
   }, [fetchKeys, fetchTeam, fetchRequests, fetchActivity, isAdmin]);
+
+  // Fetch Audit Log (Owner / Admin), lazily when the tab is opened or filters change.
+  const fetchAudit = useCallback(async () => {
+    if (!activeOrgId || !isAdmin) return;
+    setAuditLoading(true);
+    setAuditError(null);
+    try {
+      const filters = { page: auditPage, limit: 50 };
+      if (auditAction) filters.action = auditAction;
+      const data = await listAuditLogs(activeOrgId, filters);
+      setAuditLogs(data.logs || []);
+      setAuditPagination(data.pagination || { page: 1, totalPages: 1, total: 0 });
+    } catch (err) {
+      console.error('Error fetching audit log:', err);
+      setAuditError(err.response?.data?.error || err.message || 'Failed to fetch audit log');
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [activeOrgId, isAdmin, auditAction, auditPage]);
+
+  useEffect(() => {
+    if (activeTab === 'audit') fetchAudit();
+  }, [activeTab, fetchAudit]);
+
+  const handleAuditExport = async () => {
+    if (!activeOrgId) return;
+    setAuditExporting(true);
+    try {
+      const filters = auditAction ? { action: auditAction } : {};
+      const blob = await exportAuditCsv(activeOrgId, filters);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `loglogic_audit_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (err) {
+      setAuditError(err.message || 'Audit export failed.');
+    } finally {
+      setAuditExporting(false);
+    }
+  };
 
   // Handlers: API Keys
   const handleGenerateKey = async (e) => {
@@ -1314,6 +1372,30 @@ export default function SettingsPage() {
               <LuHistory className="w-4 h-4" /> Workspace Activity
             </button>
 
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('audit')}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'audit'
+                    ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/30 shadow-[0_0_15px_rgba(0,238,252,0.15)]'
+                    : 'text-[#a8abb3] hover:text-[#f1f3fc] hover:bg-[#11161d]'
+                }`}
+              >
+                <LuShieldCheck className="w-4 h-4" /> Audit Log
+              </button>
+            )}
+
+            <button
+              onClick={() => setActiveTab('billing')}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
+                activeTab === 'billing'
+                  ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/30 shadow-[0_0_15px_rgba(0,238,252,0.15)]'
+                  : 'text-[#a8abb3] hover:text-[#f1f3fc] hover:bg-[#11161d]'
+              }`}
+            >
+              <LuCreditCard className="w-4 h-4" /> Billing
+            </button>
+
             <button
               onClick={() => setActiveTab('general')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
@@ -1831,6 +1913,102 @@ export default function SettingsPage() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'billing' && (
+              <BillingSettings orgId={activeOrgId} isOwner={isOwner} notice={billingNotice} />
+            )}
+
+            {/* AUDIT LOG (Phase 15) */}
+            {activeTab === 'audit' && isAdmin && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-headline font-bold text-[#f1f3fc] flex items-center gap-2">
+                      <LuShieldCheck className="w-5 h-5 text-[#8ff5ff]" /> Audit Log
+                    </h2>
+                    <p className="text-sm text-[#a8abb3] mt-1">Immutable, tamper-evident record of security-relevant actions in this workspace.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={auditAction}
+                      onChange={(e) => { setAuditPage(1); setAuditAction(e.target.value); }}
+                      className="bg-[#0a0e14] border border-[#44484f]/40 text-[#f1f3fc] text-sm rounded-lg px-3 py-2 outline-none focus:border-[#8ff5ff] cursor-pointer"
+                    >
+                      <option value="">All actions</option>
+                      <option value="api_key.created">API key created</option>
+                      <option value="api_key.revoked">API key revoked</option>
+                      <option value="member.invited">Member invited</option>
+                      <option value="member.role_changed">Role changed</option>
+                      <option value="member.removed">Member removed</option>
+                      <option value="access.approved">Access approved</option>
+                      <option value="access.rejected">Access rejected</option>
+                      <option value="ownership.transferred">Ownership transferred</option>
+                      <option value="integration.connected">Integration connected</option>
+                      <option value="integration.removed">Integration removed</option>
+                      <option value="logs.exported">Logs exported</option>
+                      <option value="auth.login">Login</option>
+                    </select>
+                    <button onClick={fetchAudit} title="Refresh" className="p-2 text-[#7f8594] hover:text-[#8ff5ff] hover:bg-[#8ff5ff]/10 rounded-md transition-colors cursor-pointer">
+                      <LuRefreshCw className={`w-4 h-4 ${auditLoading ? 'animate-spin text-[#8ff5ff]' : ''}`} />
+                    </button>
+                    <button onClick={handleAuditExport} disabled={auditExporting} className="inline-flex items-center gap-2 rounded-lg border border-[#44484f]/40 px-3 py-2 text-sm text-[#a8abb3] hover:text-[#f1f3fc] hover:border-[#8ff5ff]/40 transition-colors cursor-pointer disabled:opacity-50">
+                      <LuFileText className="w-4 h-4" /> {auditExporting ? 'Exporting…' : 'Export CSV'}
+                    </button>
+                  </div>
+                </div>
+
+                {auditError && (
+                  <div className="rounded-xl border border-[#f87171]/40 bg-[#f87171]/10 px-4 py-3 text-sm text-[#fca5a5]">{auditError}</div>
+                )}
+
+                <div className="rounded-2xl border border-[#44484f]/25 bg-[#11161d] shadow-[0_0_20px_rgba(0,0,0,0.2)] overflow-hidden">
+                  <div className="overflow-auto custom-scrollbar">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-[#0a0e14]/50 border-b border-[#44484f]/30 text-[#a8abb3]">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">Time</th>
+                          <th className="px-4 py-3 font-medium">Actor</th>
+                          <th className="px-4 py-3 font-medium">Action</th>
+                          <th className="px-4 py-3 font-medium">Target</th>
+                          <th className="px-4 py-3 font-medium">IP</th>
+                          <th className="px-4 py-3 font-medium">Request</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#44484f]/20">
+                        {auditLoading ? (
+                          <tr><td colSpan="6" className="px-4 py-12 text-center text-[#7f8594]">Loading audit log…</td></tr>
+                        ) : auditLogs.length === 0 ? (
+                          <tr><td colSpan="6" className="px-4 py-12 text-center text-[#7f8594]">No audit events recorded yet.</td></tr>
+                        ) : (
+                          auditLogs.map((row) => (
+                            <tr key={row.id} className="hover:bg-[#1a2027]/50">
+                              <td className="px-4 py-2.5 text-[#7f8594] font-mono text-xs">{new Date(row.created_at).toLocaleString()}</td>
+                              <td className="px-4 py-2.5 text-[#a8abb3]">{row.actor_email || <span className="text-[#586173]">system</span>}</td>
+                              <td className="px-4 py-2.5">
+                                <span className="font-mono text-xs px-2 py-0.5 rounded bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/20">{row.action}</span>
+                              </td>
+                              <td className="px-4 py-2.5 text-[#7f8594] font-mono text-xs">{row.target_type ? `${row.target_type}${row.target_id ? `:${String(row.target_id).slice(0, 8)}` : ''}` : '—'}</td>
+                              <td className="px-4 py-2.5 text-[#7f8594] font-mono text-xs">{row.ip_address || '—'}</td>
+                              <td className="px-4 py-2.5 text-[#586173] font-mono text-xs">{row.request_id ? String(row.request_id).slice(0, 8) : '—'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {auditPagination.total > 0 && (
+                  <div className="flex items-center justify-between text-sm text-[#7f8594]">
+                    <span>Page {auditPagination.page} of {auditPagination.totalPages} ({auditPagination.total.toLocaleString()} events)</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setAuditPage((p) => Math.max(1, p - 1))} disabled={auditPage <= 1} className="px-3 py-1.5 rounded-md border border-[#44484f]/40 hover:text-[#f1f3fc] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">Prev</button>
+                      <button onClick={() => setAuditPage((p) => Math.min(auditPagination.totalPages, p + 1))} disabled={auditPage >= auditPagination.totalPages} className="px-3 py-1.5 rounded-md border border-[#44484f]/40 hover:text-[#f1f3fc] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">Next</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
