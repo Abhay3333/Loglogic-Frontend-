@@ -17,6 +17,7 @@ import {
   getWorkspaceActivity
 } from '../api/access';
 import { listAuditLogs, exportAuditCsv } from '../api/audit';
+import { can as hasPermission, ASSIGNABLE_ROLES } from '../lib/permissions';
 import {
   LuSettings,
   LuKey,
@@ -95,7 +96,7 @@ export default function SettingsPage() {
   // Team Invite Modal State
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('editor');
+  const [inviteRole, setInviteRole] = useState('developer');
   const [isTemporaryAccess, setIsTemporaryAccess] = useState(false);
   const [accessExpiresAt, setAccessExpiresAt] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -112,7 +113,7 @@ export default function SettingsPage() {
   // Edit Member Modal State
   const [editMemberModalOpen, setEditMemberModalOpen] = useState(false);
   const [memberToEdit, setMemberToEdit] = useState(null);
-  const [editRole, setEditRole] = useState('editor');
+  const [editRole, setEditRole] = useState('developer');
   const [editHasExpiry, setEditHasExpiry] = useState(false);
   const [editExpiryDate, setEditExpiryDate] = useState('');
   const [savingMember, setSavingMember] = useState(false);
@@ -127,7 +128,7 @@ export default function SettingsPage() {
   // Approve Request Modal State
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [requestToApprove, setRequestToApprove] = useState(null);
-  const [approveRole, setApproveRole] = useState('editor');
+  const [approveRole, setApproveRole] = useState('developer');
   const [approveIsTemporary, setApproveIsTemporary] = useState(false);
   const [approveExpiresAt, setApproveExpiresAt] = useState('');
   const [approving, setApproving] = useState(false);
@@ -171,6 +172,8 @@ export default function SettingsPage() {
   const userRole = (activeOrg?.role || 'viewer').toLowerCase();
   const isOwner = userRole === 'owner';
   const isAdmin = isOwner || userRole === 'admin';
+  const canViewAudit = hasPermission(userRole, 'can_view_audit_trail');
+  const canManageKeys = hasPermission(userRole, 'can_manage_keys');
 
   const pendingRequestsCount = requests.filter(r => r.status === 'pending').length;
 
@@ -262,7 +265,7 @@ export default function SettingsPage() {
 
   // Fetch Audit Log (Owner / Admin), lazily when the tab is opened or filters change.
   const fetchAudit = useCallback(async () => {
-    if (!activeOrgId || !isAdmin) return;
+    if (!activeOrgId || !canViewAudit) return;
     setAuditLoading(true);
     setAuditError(null);
     try {
@@ -277,7 +280,7 @@ export default function SettingsPage() {
     } finally {
       setAuditLoading(false);
     }
-  }, [activeOrgId, isAdmin, auditAction, auditPage]);
+  }, [activeOrgId, canViewAudit, auditAction, auditPage]);
 
   useEffect(() => {
     if (activeTab === 'audit') fetchAudit();
@@ -339,7 +342,7 @@ export default function SettingsPage() {
     setRevoking(true);
     setRevokeError(null);
     try {
-      await revokeApiKey(keyToDelete.id);
+      await revokeApiKey(keyToDelete.id, activeOrgId);
       setDeleteKeyModalOpen(false);
       setKeyToDelete(null);
       fetchKeys();
@@ -417,7 +420,7 @@ export default function SettingsPage() {
   // Handlers: Edit Member
   const openEditMember = (member) => {
     setMemberToEdit(member);
-    setEditRole(member.role || 'editor');
+    setEditRole(member.role === 'editor' ? 'developer' : (member.role || 'developer'));
     setEditHasExpiry(Boolean(member.accessExpiresAt));
     setEditExpiryDate(
       member.accessExpiresAt ? new Date(member.accessExpiresAt).toISOString().slice(0, 16) : ''
@@ -453,7 +456,7 @@ export default function SettingsPage() {
   // Handlers: Access Requests
   const openApproveModal = (req) => {
     setRequestToApprove(req);
-    setApproveRole(req.requestedRole || 'editor');
+    setApproveRole(req.requestedRole === 'editor' ? 'developer' : (req.requestedRole || 'developer'));
     setApproveIsTemporary(false);
     setApproveExpiresAt('');
     setApproveError(null);
@@ -772,9 +775,10 @@ export default function SettingsPage() {
                 onChange={(e) => setInviteRole(e.target.value)}
                 className="w-full bg-[#0a0e14] border border-[#44484f]/40 text-[#f1f3fc] text-sm rounded-lg focus:border-[#8ff5ff] focus:ring-1 focus:ring-[#8ff5ff] p-2.5 outline-none transition-colors"
               >
-                <option value="admin">Admin — Full read/write, key management & member invites</option>
-                <option value="editor">Editor — Read, stream logs, manage alerts & query</option>
-                <option value="viewer">Viewer — Read-only log search and analytics inspection</option>
+                <option value="admin">Admin — Manage members, keys, integrations & view audit trail</option>
+                <option value="developer">Developer — View/export logs, manage integrations & alerts</option>
+                <option value="viewer">Viewer — Read-only log search and analytics</option>
+                <option value="auditor">Auditor — Read/export logs + view the audit trail</option>
               </select>
             </div>
 
@@ -896,8 +900,9 @@ export default function SettingsPage() {
               className="w-full bg-[#0a0e14] border border-[#44484f]/40 text-[#f1f3fc] text-sm rounded-lg p-2.5 outline-none focus:border-[#8ff5ff]"
             >
               <option value="admin">Admin</option>
-              <option value="editor">Editor</option>
+              <option value="developer">Developer</option>
               <option value="viewer">Viewer</option>
+              <option value="auditor">Auditor</option>
             </select>
           </div>
 
@@ -983,8 +988,9 @@ export default function SettingsPage() {
               className="w-full bg-[#0a0e14] border border-[#44484f]/40 text-[#f1f3fc] text-sm rounded-lg p-2.5 outline-none focus:border-[#8ff5ff]"
             >
               <option value="admin">Admin</option>
-              <option value="editor">Editor</option>
+              <option value="developer">Developer</option>
               <option value="viewer">Viewer</option>
+              <option value="auditor">Auditor</option>
             </select>
           </div>
 
@@ -1174,7 +1180,9 @@ export default function SettingsPage() {
                   className="w-full bg-[#0a0e14] border border-[#44484f]/40 text-[#f1f3fc] text-sm rounded-lg p-2.5 outline-none focus:border-amber-400"
                 >
                   <option value="admin">Admin (Recommended — full operational access)</option>
-                  <option value="editor">Editor</option>
+                  <option value="developer">Developer</option>
+                  <option value="viewer">Viewer</option>
+                  <option value="auditor">Auditor</option>
                 </select>
               </div>
 
@@ -1372,7 +1380,7 @@ export default function SettingsPage() {
               <LuHistory className="w-4 h-4" /> Workspace Activity
             </button>
 
-            {isAdmin && (
+            {canViewAudit && (
               <button
                 onClick={() => setActiveTab('audit')}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
@@ -1418,14 +1426,16 @@ export default function SettingsPage() {
                     <h2 className="text-xl font-bold text-[#f1f3fc]">API Keys</h2>
                     <p className="text-sm text-[#a8abb3] mt-1">Manage ingestion keys for your applications and servers.</p>
                   </div>
-                  <button
-                    onClick={() => { setGenerateModalOpen(true); setGenerateError(null); setGeneratedKey(null); }}
-                    disabled={isAccessExpired}
-                    title={isAccessExpired ? 'Access expired' : 'Generate Key'}
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#00eefc] hover:bg-[#8ff5ff] px-4 py-2.5 text-sm font-bold text-[#0a0e14] shadow-[0_0_15px_rgba(0,238,252,0.3)] transition-all cursor-pointer disabled:opacity-40"
-                  >
-                    <LuPlus className="w-4 h-4" /> Generate New Key
-                  </button>
+                  {canManageKeys && (
+                    <button
+                      onClick={() => { setGenerateModalOpen(true); setGenerateError(null); setGeneratedKey(null); }}
+                      disabled={isAccessExpired}
+                      title={isAccessExpired ? 'Access expired' : 'Generate Key'}
+                      className="inline-flex items-center gap-2 rounded-lg bg-[#00eefc] hover:bg-[#8ff5ff] px-4 py-2.5 text-sm font-bold text-[#0a0e14] shadow-[0_0_15px_rgba(0,238,252,0.3)] transition-all cursor-pointer disabled:opacity-40"
+                    >
+                      <LuPlus className="w-4 h-4" /> Generate New Key
+                    </button>
+                  )}
                 </div>
 
                 {keysError && (
@@ -1921,7 +1931,7 @@ export default function SettingsPage() {
             )}
 
             {/* AUDIT LOG (Phase 15) */}
-            {activeTab === 'audit' && isAdmin && (
+            {activeTab === 'audit' && canViewAudit && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>

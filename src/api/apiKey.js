@@ -33,13 +33,14 @@ export const getApiKeys = async (orgId) => {
     return response.data;
 };
 
-export const revokeApiKey = async (keyId) => {
+export const revokeApiKey = async (keyId, orgId) => {
     const token = await getAuthToken();
 
     const response = await axios.delete(`${BASE_URL}/api/keys/${encodeURIComponent(keyId)}`, {
         headers: {
             Authorization: `Bearer ${token}`
         },
+        params: orgId ? { orgId } : undefined,
         withCredentials: true
     });
     return response.data;

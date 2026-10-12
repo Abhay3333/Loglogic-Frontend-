@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { queryLogs, getOrgServices, getSavedQueries, createSavedQuery, exportLogsCsv, getLogStats } from '../api/logs';
 import { listIntegrations, createIssueFromLog } from '../api/integrations';
+import { can } from '../lib/permissions';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import {
   LuSearch,
@@ -89,6 +90,7 @@ export default function HistoricalLogs() {
   const currentOrgName = currentOrg?.name || (organizations.length > 0 ? organizations[0].name : 'Workspace');
   const activeOrg = currentOrg || organizations[0] || null;
   const canManage = activeOrg?.role === 'owner' || activeOrg?.role === 'admin';
+  const canExport = can(activeOrg?.role, 'can_export_logs');
 
   // Issue-tracker integrations for "Create Issue" from a log.
   const [issueIntegrations, setIssueIntegrations] = useState([]);
@@ -333,13 +335,15 @@ export default function HistoricalLogs() {
               >
                 <LuChartColumn className="w-5 h-5" />
               </button>
-              <button 
-                onClick={exportCSV}
-                className="p-2 text-[#7f8594] hover:text-[#8ff5ff] hover:bg-[#8ff5ff]/10 rounded-md transition-colors cursor-pointer" 
-                title="Export current view to CSV"
-              >
-                <LuDownload className="w-5 h-5" />
-              </button>
+              {canExport && (
+                <button
+                  onClick={exportCSV}
+                  className="p-2 text-[#7f8594] hover:text-[#8ff5ff] hover:bg-[#8ff5ff]/10 rounded-md transition-colors cursor-pointer"
+                  title="Export current view to CSV"
+                >
+                  <LuDownload className="w-5 h-5" />
+                </button>
+              )}
               <button
                 onClick={() => fetchLogs(pagination.page)}
                 title="Refresh logs"
