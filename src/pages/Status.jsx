@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const BASE_URL = import.meta.env.VITE_API_LOCAL_URL || 'http://localhost:5000'
+const BASE_URL = (import.meta.env.VITE_API_DEPLOYED_URL || import.meta.env.VITE_API_LOCAL_URL || 'http://localhost:5000').replace(/\/health\/?$/, '').replace(/\/+$/, '')
 
 const Row = ({ label, state }) => (
   <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3">

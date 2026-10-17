@@ -1,7 +1,7 @@
 import axios from "axios";
 import { supabase } from "../lib/supabase";
 
-const BASE_URL =  import.meta.env.VITE_API_LOCAL_URL || "http://localhost:5000";
+const BASE_URL = (import.meta.env.VITE_API_DEPLOYED_URL || import.meta.env.VITE_API_LOCAL_URL || "http://localhost:5000").replace(/\/health\/?$/, "").replace(/\/+$/, "");
 
 const getAuthToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
