@@ -442,5 +442,5 @@ Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more informa
 ---
 
 <div align="center">
-  <sub>Built with high-throughput precision by the LogLogic Engineering Team.</sub>
+  <sub>Built with high-throughput precision by the Abhay3333.</sub>
 </div>
