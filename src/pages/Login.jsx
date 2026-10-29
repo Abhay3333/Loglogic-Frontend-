@@ -2,12 +2,14 @@ import React, { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { FaCheck, FaEye, FaEyeSlash, FaGithub, FaGoogle, FaHubspot, FaTerminal } from 'react-icons/fa'
 import { supabase } from '../lib/supabase'
+import { startSso } from '../api/sso'
 
 const Login = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   // Where to send the user after auth (e.g. back to a pending /invite link).
-  const redirectTarget = searchParams.get('redirect') || '/app/dashboard'
+  const requestedRedirect = searchParams.get('redirect') || '/app/dashboard'
+  const redirectTarget = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') && !requestedRedirect.includes('\\') ? requestedRedirect : '/app/dashboard'
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -20,7 +22,20 @@ const Login = () => {
     setSuccessMsg("")
     setLoading(true)
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    try {
+      const sso = await startSso(email);
+      if (sso.available) {
+        sessionStorage.setItem('loglogic_pending_login_audit', '1');
+        window.location.assign(sso.url);
+        return;
+      }
+    } catch {
+      setLoading(false);
+      setErrorMsg('Login discovery is unavailable. Please try again or contact your administrator.');
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
       email: email,
       password: password,
     });
@@ -33,7 +48,6 @@ const Login = () => {
       return;
     }
 
-    console.log("Logged in successfully!", data);
     setSuccessMsg("Logged in successfully! Redirecting...");
     
     // Set localStorage auth
@@ -52,10 +66,21 @@ const Login = () => {
     handleLogin(email, password)
   }
 
+  const handleSso = async () => {
+    setErrorMsg(''); setLoading(true);
+    try {
+      const result = await startSso(email);
+      if (!result.available) { setErrorMsg('SSO is not configured for that email domain.'); return; }
+      sessionStorage.setItem('loglogic_pending_login_audit', '1');
+      window.location.assign(result.url);
+    } catch { setErrorMsg('SSO could not start. Check your email or contact your workspace administrator.'); }
+    finally { setLoading(false); }
+  }
+
   const handleOAuthLogin = async (providerName) => {
     setErrorMsg("")
     setSuccessMsg("")
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: providerName,
       options: {
         redirectTo: `${window.location.origin}${redirectTarget}`
@@ -138,6 +163,8 @@ const Login = () => {
             required
           />
         </div>
+        <button type="button" disabled={loading || !email} onClick={handleSso}
+          className="w-full rounded-lg border border-primary/40 py-3 text-primary disabled:opacity-50">Continue with company SSO</button>
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <label className="block text-[10px] uppercase tracking-widest font-bold text-outline-variant" htmlFor="password">Security Key</label>

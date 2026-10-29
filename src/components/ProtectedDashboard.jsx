@@ -50,7 +50,6 @@ export default function ProtectedDashboard() {
 
   const fetchAccessStatus = useCallback(async (orgId) => {
     if (!orgId) {
-      setAccessStatus(null);
       return;
     }
     try {
@@ -102,10 +101,13 @@ export default function ProtectedDashboard() {
 
   // Whenever the active workspace changes, check its detailed access status
   useEffect(() => {
-    if (currentOrg?.id) {
-      fetchAccessStatus(currentOrg.id);
-    }
-  }, [currentOrg?.id, fetchAccessStatus]);
+    if (!currentOrg?.id || currentOrg.ssoRequired) return;
+    let active = true;
+    getMyAccess(currentOrg.id).then((data) => {
+      if (active) setAccessStatus(data);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [currentOrg?.id, currentOrg?.ssoRequired]);
 
   // An active workspace is considered expired if either the organization list
   // or the direct status check flags it as expired.
@@ -127,6 +129,10 @@ export default function ProtectedDashboard() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-on-surface">
+      {currentOrg?.ssoRequired && <div className="p-4 text-center bg-amber-950 text-amber-100">
+        This workspace requires company SSO. <button className="underline" onClick={() => navigate('/login')}>Sign in with company SSO</button>
+        {organizations.filter((org) => !org.ssoRequired).map((org) => <button key={org.id} className="ml-4 underline" onClick={() => setCurrentOrg(org)}>Open {org.name}</button>)}
+      </div>}
       {/* Expired Access Alert Bar (shows across all app views when expired) */}
       {isAccessExpired && (
         <AccessExpiredBanner
@@ -151,6 +157,7 @@ export default function ProtectedDashboard() {
       />
 
       <div className="flex-1 min-h-0 flex flex-col">
+        {!currentOrg?.ssoRequired && <>
         <Outlet 
           context={{ 
             user, 
@@ -167,6 +174,7 @@ export default function ProtectedDashboard() {
             }
           }} 
         />
+        </>}
       </div>
     </div>
   );

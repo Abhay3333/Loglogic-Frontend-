@@ -8,14 +8,22 @@ const getAuthToken = async () => {
     return session ? session.access_token : "";
 };
 
-export const createApiKey = async ({ orgId, keyName }) => {
+export const createApiKey = async ({ orgId, keyName, scopes = ['logs:ingest'], allowedCidrs = [] }) => {
     const token = await getAuthToken();
 
-    const response = await axios.post(`${BASE_URL}/api/keys/create`, { orgId, keyName }, {
+    const response = await axios.post(`${BASE_URL}/api/keys/create`, { orgId, keyName, scopes, allowedCidrs }, {
         headers: {
             Authorization: `Bearer ${token}`
         },
         withCredentials: true
+    });
+    return response.data;
+};
+
+export const updateApiKeyPolicy = async (keyId, { scopes, allowedCidrs }) => {
+    const token = await getAuthToken();
+    const response = await axios.patch(`${BASE_URL}/api/keys/${encodeURIComponent(keyId)}`, { scopes, allowedCidrs }, {
+        headers: { Authorization: `Bearer ${token}` }, withCredentials: true
     });
     return response.data;
 };

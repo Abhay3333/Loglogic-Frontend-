@@ -11,26 +11,27 @@ export const FLAGS = [
   'can_view_audit_trail',
   'can_manage_members',
   'can_manage_integrations',
-  'can_manage_alerts'
+  'can_manage_alerts',
+  'can_manage_privacy'
 ];
 
 const ROLE_PERMISSIONS = {
   owner: allTrue(FLAGS),
   admin: {
     can_view_logs: true, can_export_logs: true, can_manage_keys: true, can_edit_billing: false,
-    can_view_audit_trail: true, can_manage_members: true, can_manage_integrations: true, can_manage_alerts: true
+    can_view_audit_trail: true, can_manage_members: true, can_manage_integrations: true, can_manage_alerts: true, can_manage_privacy: true
   },
   developer: {
     can_view_logs: true, can_export_logs: true, can_manage_keys: false, can_edit_billing: false,
-    can_view_audit_trail: false, can_manage_members: false, can_manage_integrations: true, can_manage_alerts: true
+    can_view_audit_trail: false, can_manage_members: false, can_manage_integrations: true, can_manage_alerts: true, can_manage_privacy: false
   },
   viewer: {
     can_view_logs: true, can_export_logs: false, can_manage_keys: false, can_edit_billing: false,
-    can_view_audit_trail: false, can_manage_members: false, can_manage_integrations: false, can_manage_alerts: false
+    can_view_audit_trail: false, can_manage_members: false, can_manage_integrations: false, can_manage_alerts: false, can_manage_privacy: false
   },
   auditor: {
     can_view_logs: true, can_export_logs: true, can_manage_keys: false, can_edit_billing: false,
-    can_view_audit_trail: true, can_manage_members: false, can_manage_integrations: false, can_manage_alerts: false
+    can_view_audit_trail: true, can_manage_members: false, can_manage_integrations: false, can_manage_alerts: false, can_manage_privacy: false
   }
 };
 

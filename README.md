@@ -150,9 +150,9 @@ flowchart TB
 * **Omnichannel Ecosystem:** Native webhook adapters for PagerDuty (Events API v2), Opsgenie (P1/P2 priority mapping), Discord, Microsoft Teams, incident.io, and HMAC-SHA256 signed custom outgoing webhooks (`X-LogLogic-Signature`).
 * **One-Click Issue Creation:** Engineers can escalate an error directly from the log details drawer into Linear, Jira, or GitHub Issues with pre-filled stack traces, metadata, and deep links.
 
-### 6. The Immutable Security Audit Ledger
-* **Tamper-Evident Append-Only Log:** Enterprise compliance requires an unalterable history of sensitive actions. LogLogic stores security events in a dedicated PostgreSQL `audit_logs` table protected by a `BEFORE UPDATE` database trigger that strictly raises an exception on any modification or deletion attempt.
-* **Forensic Event Capture:** Records the actor ID, actor email, action type (e.g., `api_key.created`, `member.role_changed`, `logs.exported`, `auth.login`), target entity, client IP address (`TRUST_PROXY`-aware), User-Agent header, request ID, and a JSONB before/after state diff.
+### 6. The Protected Security Audit Ledger
+* **Application Append-Only Log:** Apply `audit.sql` followed by `audit_protection.sql` to guard UPDATE, DELETE and TRUNCATE and limit the API role to SELECT/INSERT. Historical organization and actor IDs survive workspace/user deletion. Database administrators can alter these protections; this is not cryptographic tamper evidence.
+* **Forensic Event Capture:** Records actor/context fields and action-specific, minimized metadata. Audit IPs follow the explicit `TRUSTED_PROXY_CIDRS` policy. Credentials and known sensitive patterns are redacted; original payloads and search values are excluded. Business-operation audit writes remain best-effort.
 * **Auditor Console:** Security officers and administrators have access to an Audit Log console featuring action-type filters, pagination, and one-click CSV report exports for SOC 2 / ISO 27001 readiness.
 
 ---
@@ -165,7 +165,7 @@ flowchart TB
 | **Ingestion Write Path** | Asynchronous Buffer (`202 Accepted` via BullMQ) | Synchronous MongoDB `insertOne()` | Synchronous database writes tie HTTP response latency directly to database load. A sudden 10x traffic spike risks exhausting Node.js sockets. Queuing in Redis decouples ingestion speed from storage write speed. |
 | **Live-Tailing Gateway** | Server-Sent Events (SSE) via `EventSource` | Bidirectional WebSockets (Socket.io) | Live log streaming is fundamentally unidirectional (server to client). SSE operates natively over standard HTTP/2, supports built-in reconnection protocols, handles corporate firewalls effortlessly, and eliminates the memory overhead of maintaining heavy WebSocket state machines. |
 | **Alert Frequency Evaluation** | Redis Sorted Sets (ZSET) | Periodic SQL `SELECT COUNT(*)` crons | Running periodic SQL aggregate counts over millions of historical records introduces severe database I/O bottlenecks. Redis ZSETs allow O(log N) element insertion and expiration, enabling sub-millisecond evaluation at zero database cost. |
-| **Audit Ledger Security** | PostgreSQL `BEFORE UPDATE` Trigger | Application-Level ORM Hooks | Application-level checks can be accidentally bypassed during direct database queries or migration scripts. A database-level trigger guarantees tamper-evident immutability regardless of how the database is accessed. |
+| **Audit Ledger Security** | PostgreSQL UPDATE/DELETE/TRUNCATE guards and restricted API privileges | Application-Level ORM Hooks | Database guards reject ordinary mutation even outside the application. Administrators can change guards; external integrity evidence and complete capture are separate concerns. |
 
 ---
 
@@ -226,7 +226,8 @@ Loglogic/
 │   │   ├── access_management.sql     # Access requests, temporary expirations, activity ledger
 │   │   ├── advanced_queries.sql      # Saved queries & metadata search indexes
 │   │   ├── alerting_system.sql       # Alert rules, incident history, sliding-window state
-│   │   ├── audit.sql                 # Immutable audit logs & tamper-evident trigger
+│   │   ├── audit.sql                 # Base audit schema (apply follow-up below)
+│   │   ├── audit_protection.sql      # Mutation guards, retained IDs, restricted grants
 │   │   ├── billing.sql               # Subscription tiers, quotas, Stripe references
 │   │   ├── integrations.sql          # Provider credentials (encrypted) & Slack configs
 │   │   ├── rbac.sql                  # Granular permissions & role definitions
@@ -273,7 +274,7 @@ Open the **SQL Editor** in your Supabase dashboard and execute the migration fil
 2. `access_management.sql` — Provisions access requests, temporary memberships, and workspace activity.
 3. `alerting_system.sql` — Provisions alert rules and incident history.
 4. `integrations.sql` — Provisions encrypted integration configs and delivery tracking.
-5. `audit.sql` — Provisions the append-only `audit_logs` table and immutability trigger.
+5. `audit.sql`, then `audit_protection.sql` — Provisions the audit schema, mutation guards, restricted privileges, and deletion-safe evidence retention. Review `Loglogic-Backend-/docs/AUDIT_RETENTION_POLICY.md`.
 6. `billing.sql` — Provisions subscription tiers and usage metering tables.
 
 ---
@@ -415,8 +416,8 @@ curl -X POST http://localhost:5000/v1/ingest \
 - [x] **Phase 1–8: Foundational SaaS Architecture** (Polyglot model, SHA-256 API keys, 202-Accepted BullMQ buffer, MongoDB time-series data lake, and 5-tab self-service access lifecycle).
 - [x] **Phase 9: Real-Time Live-Tailing** (Server-Sent Events gateway, Redis Pub/Sub broadcast, sliding-window ring buffer, and terminal UI).
 - [x] **Phase 14: Incident Workflows & ChatOps** (Interactive Slack Block Kit with HMAC-SHA256 verification, PagerDuty Events API v2, Opsgenie priority mapping, and chronological incident timelines).
-- [x] **Phase 15: Compliance & Security Ledger** (Granular 5-tier RBAC matrix, immutable PostgreSQL audit log with `BEFORE UPDATE` tamper-evident trigger, and CSV exports).
-- [ ] **Phase 15+ (Enterprise Security):** Automated ingestion-time PII redaction engine (masking credit cards, social security numbers, and bearer tokens before persistence).
+- [x] **Phase 15 RBAC & Audit Protections:** Granular role matrix, UPDATE/DELETE/TRUNCATE guards, minimized audit metadata and CSV exports implemented. Stage 3 is locally verified; hosted migration/activation remains pending.
+- [x] **Phase 15 Stages 1–2:** Pre-queue PII redaction, scoped API keys, and CIDR restrictions implemented and locally verified; see `phase15Pending.md` for activation dependencies and remaining stages.
 - [ ] **Phase 16 (Scale & Partitioning):** Migrating ingestion buffer to Apache Kafka for multi-region topic partitioning and MongoDB sharding strategy (`{ orgId: "hashed", timestamp: 1 }`).
 - [ ] **Phase 17 (Developer Experience):** Publishing official `@loglogic/node`, `loglogic-python`, and `loglogic-go` lightweight buffering SDKs, alongside the `ll` CLI tool.
 - [ ] **Phase 18 (AI Observability):** Statistical anomaly detection (Z-score baselines), Drain log template clustering (reducing dashboard noise by 95%), and LLM-assisted root-cause diagnosis.

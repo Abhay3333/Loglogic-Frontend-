@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import BillingSettings from '../components/BillingSettings';
+import RedactionSettings from '../components/RedactionSettings';
+import PrivacyRequests from '../components/PrivacyRequests';
+import SsoSettings from '../components/SsoSettings';
+import KeyPolicyEditor, { KeyPolicyFields } from '../components/KeyPolicyEditor';
+import { parseCidrInput } from '../lib/keyPolicy';
 import { getApiKeys, createApiKey, revokeApiKey } from '../api/apiKey';
 import {
   getWorkspaceMembers,
@@ -83,6 +88,9 @@ export default function SettingsPage() {
   // Key Modals State
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyScopes, setNewKeyScopes] = useState(['logs:ingest']);
+  const [newKeyCidrs, setNewKeyCidrs] = useState('');
+  const [policyKey, setPolicyKey] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState(null);
   const [generatedKey, setGeneratedKey] = useState(null);
@@ -173,6 +181,7 @@ export default function SettingsPage() {
   const isOwner = userRole === 'owner';
   const isAdmin = isOwner || userRole === 'admin';
   const canViewAudit = hasPermission(userRole, 'can_view_audit_trail');
+  const canManagePrivacy = isAdmin && hasPermission(userRole, 'can_manage_privacy');
   const canManageKeys = hasPermission(userRole, 'can_manage_keys');
 
   const pendingRequestsCount = requests.filter(r => r.status === 'pending').length;
@@ -317,7 +326,9 @@ export default function SettingsPage() {
     try {
       const response = await createApiKey({
         orgId: activeOrgId,
-        keyName: newKeyName.trim()
+        keyName: newKeyName.trim(),
+        scopes: newKeyScopes,
+        allowedCidrs: parseCidrInput(newKeyCidrs)
       });
       setGeneratedKey(response.rawKey);
       fetchKeys();
@@ -682,7 +693,8 @@ export default function SettingsPage() {
                 Will be bound to workspace: <span className="text-[#8ff5ff] font-medium">{activeOrgName}</span>
               </p>
             </div>
-            <div className="flex justify-end gap-3">
+            <KeyPolicyFields scopes={newKeyScopes} onScopesChange={setNewKeyScopes} cidrs={newKeyCidrs} onCidrsChange={setNewKeyCidrs} disabled={generating} />
+            <div className="flex justify-end gap-3 mt-5">
               <button
                 type="button"
                 onClick={() => setGenerateModalOpen(false)}
@@ -692,7 +704,7 @@ export default function SettingsPage() {
               </button>
               <button
                 type="submit"
-                disabled={!newKeyName.trim() || generating || isAccessExpired}
+                disabled={!newKeyName.trim() || !newKeyScopes.length || generating || isAccessExpired}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-[#0a0e14] bg-[#00eefc] hover:bg-[#8ff5ff] rounded-lg shadow-[0_0_15px_rgba(0,238,252,0.3)] disabled:opacity-50 transition-all cursor-pointer"
               >
                 {generating && <LuLoader className="w-4 h-4 animate-spin text-[#0a0e14]" />}
@@ -1327,6 +1339,16 @@ export default function SettingsPage() {
         <div className="flex flex-col md:flex-row gap-8">
           {/* Sidebar Tabs */}
           <div className="w-full md:w-64 flex-shrink-0 space-y-1">
+            {isAdmin && canManageKeys && !isAccessExpired && <button onClick={() => setActiveTab('sso')}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl cursor-pointer ${activeTab === 'sso' ? 'bg-[#00eefc]/10 text-[#8ff5ff]' : 'text-[#a8abb3]'}`}><LuShieldCheck className="w-4 h-4" />Single sign-on</button>}
+            {canManagePrivacy && !isAccessExpired && <button onClick={() => setActiveTab('privacy')}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl cursor-pointer ${activeTab === 'privacy' ? 'bg-[#00eefc]/10 text-[#8ff5ff]' : 'text-[#a8abb3]'}`}><LuShieldCheck className="w-4 h-4" />Privacy requests</button>}
+            {canManageKeys && !isAccessExpired && (
+              <button onClick={() => setActiveTab('redaction')}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl cursor-pointer ${activeTab === 'redaction' ? 'bg-[#00eefc]/10 text-[#8ff5ff]' : 'text-[#a8abb3] hover:text-white'}`}>
+                <LuShieldCheck className="w-4 h-4" /> PII Redaction
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('api-keys')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
@@ -1418,17 +1440,22 @@ export default function SettingsPage() {
 
           {/* Tab Content */}
           <div className="flex-1 min-w-0">
+            {activeTab === 'sso' && isAdmin && canManageKeys && !isAccessExpired && activeOrgId && <SsoSettings key={activeOrgId} orgId={activeOrgId} />}
+            {activeTab === 'privacy' && canManagePrivacy && !isAccessExpired && activeOrgId && <PrivacyRequests key={activeOrgId} orgId={activeOrgId} />}
+            {activeTab === 'redaction' && canManageKeys && !isAccessExpired && activeOrgId && (
+              <RedactionSettings key={activeOrgId} orgId={activeOrgId} />
+            )}
             {/* TAB 1: API KEYS */}
             {activeTab === 'api-keys' && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-bold text-[#f1f3fc]">API Keys</h2>
-                    <p className="text-sm text-[#a8abb3] mt-1">Manage ingestion keys for your applications and servers.</p>
+                    <p className="text-sm text-[#a8abb3] mt-1">Manage scoped API keys and source IP restrictions.</p>
                   </div>
                   {canManageKeys && (
                     <button
-                      onClick={() => { setGenerateModalOpen(true); setGenerateError(null); setGeneratedKey(null); }}
+                      onClick={() => { setGenerateModalOpen(true); setGenerateError(null); setGeneratedKey(null); setNewKeyScopes(['logs:ingest']); setNewKeyCidrs(''); }}
                       disabled={isAccessExpired}
                       title={isAccessExpired ? 'Access expired' : 'Generate Key'}
                       className="inline-flex items-center gap-2 rounded-lg bg-[#00eefc] hover:bg-[#8ff5ff] px-4 py-2.5 text-sm font-bold text-[#0a0e14] shadow-[0_0_15px_rgba(0,238,252,0.3)] transition-all cursor-pointer disabled:opacity-40"
@@ -1467,6 +1494,7 @@ export default function SettingsPage() {
                           <tr>
                             <th scope="col" className="px-6 py-4 font-medium">Name</th>
                             <th scope="col" className="px-6 py-4 font-medium">Key Hint</th>
+                            <th scope="col" className="px-6 py-4 font-medium">Scopes / Allowed IPs</th>
                             <th scope="col" className="px-6 py-4 font-medium">Created Date</th>
                             <th scope="col" className="px-6 py-4 font-medium">Status</th>
                             <th scope="col" className="px-6 py-4 font-medium text-right">Actions</th>
@@ -1484,6 +1512,10 @@ export default function SettingsPage() {
                               <tr key={keyObj.id} className="hover:bg-[#1a2027]/50 transition-colors">
                                 <td className="px-6 py-4 font-medium text-[#f1f3fc]">{keyObj.name}</td>
                                 <td className="px-6 py-4 font-mono text-[#7f8594] text-xs">{displayKey}</td>
+                                <td className="px-6 py-4 text-xs text-[#a8abb3] whitespace-normal max-w-xs">
+                                  <div className="text-[#8ff5ff]">{(keyObj.scopes || ['logs:ingest']).join(', ')}</div>
+                                  <div className="break-all mt-1">{keyObj.allowed_cidrs?.length ? keyObj.allowed_cidrs.join(', ') : 'Any source IP'}</div>
+                                </td>
                                 <td className="px-6 py-4 text-[#a8abb3]">{formattedDate}</td>
                                 <td className="px-6 py-4">
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
@@ -1493,7 +1525,10 @@ export default function SettingsPage() {
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                  {isActive && !isAccessExpired && (
+                                  {isActive && !isAccessExpired && canManageKeys && (
+                                    <button onClick={() => setPolicyKey(keyObj)} title="Edit key restrictions" className="text-[#7f8594] hover:text-[#8ff5ff] p-2 cursor-pointer"><LuPencil className="w-4 h-4" /></button>
+                                  )}
+                                  {isActive && !isAccessExpired && canManageKeys && (
                                     <button
                                       onClick={() => { setKeyToDelete(keyObj); setDeleteKeyModalOpen(true); }}
                                       className="text-[#7f8594] hover:text-[#f87171] p-2 hover:bg-[#f87171]/10 rounded transition-colors cursor-pointer"
@@ -1938,7 +1973,7 @@ export default function SettingsPage() {
                     <h2 className="text-xl font-headline font-bold text-[#f1f3fc] flex items-center gap-2">
                       <LuShieldCheck className="w-5 h-5 text-[#8ff5ff]" /> Audit Log
                     </h2>
-                    <p className="text-sm text-[#a8abb3] mt-1">Immutable, tamper-evident record of security-relevant actions in this workspace.</p>
+                    <p className="text-sm text-[#a8abb3] mt-1">Security events protected from updates, deletion and truncation by application credentials.</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <select
@@ -1949,6 +1984,12 @@ export default function SettingsPage() {
                       <option value="">All actions</option>
                       <option value="api_key.created">API key created</option>
                       <option value="api_key.revoked">API key revoked</option>
+                      <option value="api_key.policy_updated">API key restrictions changed</option>
+                      <option value="security.redaction_updated">Redaction settings changed</option>
+                      <option value="privacy_request.requested">Privacy request opened</option>
+                      <option value="privacy_request.confirmed">Privacy request confirmed</option>
+                      <option value="privacy_request.completed">Privacy request completed</option>
+                      <option value="privacy_request.failed">Privacy request failed</option>
                       <option value="member.invited">Member invited</option>
                       <option value="member.role_changed">Role changed</option>
                       <option value="member.removed">Member removed</option>
@@ -2101,7 +2142,10 @@ export default function SettingsPage() {
       </div>
 
       {/* Render Modals */}
-      {generateModalOpen && <GenerateKeyModal />}
+      {generateModalOpen && GenerateKeyModal()}
+      {policyKey && policyKey.org_id === activeOrgId && canManageKeys && !isAccessExpired && (
+        <KeyPolicyEditor key={policyKey.id} apiKey={policyKey} onClose={() => setPolicyKey(null)} onSaved={() => { setPolicyKey(null); fetchKeys(); }} />
+      )}
       {deleteKeyModalOpen && <DeleteKeyModal />}
       {inviteModalOpen && <InviteMemberModal />}
       {removeUserModalOpen && <RemoveUserModal />}
