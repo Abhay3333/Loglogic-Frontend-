@@ -4,6 +4,8 @@ import BillingSettings from '../components/BillingSettings';
 import RedactionSettings from '../components/RedactionSettings';
 import PrivacyRequests from '../components/PrivacyRequests';
 import SsoSettings from '../components/SsoSettings';
+import SettingsSidebar from '../components/SettingsSidebar';
+import { settingsAccess, resolveSettingsTab } from '../lib/settingsAccess';
 import KeyPolicyEditor, { KeyPolicyFields } from '../components/KeyPolicyEditor';
 import { parseCidrInput } from '../lib/keyPolicy';
 import { getApiKeys, createApiKey, revokeApiKey } from '../api/apiKey';
@@ -69,10 +71,8 @@ export default function SettingsPage() {
     refreshAccessStatus
   } = outletContext;
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const billingNotice = searchParams.get('billing');
-  const openBilling = billingNotice === 'success' || billingNotice === 'cancelled' || searchParams.get('tab') === 'billing';
-  const [activeTab, setActiveTab] = useState(openBilling ? 'billing' : 'api-keys');
 
   // API Keys State
   const [keys, setKeys] = useState([]);
@@ -180,9 +180,22 @@ export default function SettingsPage() {
   const userRole = (activeOrg?.role || 'viewer').toLowerCase();
   const isOwner = userRole === 'owner';
   const isAdmin = isOwner || userRole === 'admin';
-  const canViewAudit = hasPermission(userRole, 'can_view_audit_trail');
-  const canManagePrivacy = isAdmin && hasPermission(userRole, 'can_manage_privacy');
+  const tabAccess = settingsAccess(activeOrg, isAccessExpired);
+  const { activeTab } = resolveSettingsTab(searchParams, tabAccess);
+  const canViewAudit = tabAccess.audit;
   const canManageKeys = hasPermission(userRole, 'can_manage_keys');
+  const canViewKeys = tabAccess['api-keys'];
+  const canViewTeam = tabAccess.team;
+  const canViewRequests = tabAccess.requests;
+  const canViewActivity = tabAccess.activity;
+  const setActiveTab = (tab) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('tab', tab);
+      if (tab !== 'billing') { next.delete('billing'); next.delete('session_id'); }
+      return next;
+    });
+  };
 
   const pendingRequestsCount = requests.filter(r => r.status === 'pending').length;
 
@@ -194,7 +207,7 @@ export default function SettingsPage() {
 
   // Fetch API Keys
   const fetchKeys = useCallback(async () => {
-    if (!activeOrgId) {
+    if (!activeOrgId || !canViewKeys) {
       setKeysLoading(false);
       return;
     }
@@ -209,11 +222,11 @@ export default function SettingsPage() {
     } finally {
       setKeysLoading(false);
     }
-  }, [activeOrgId]);
+  }, [activeOrgId, canViewKeys]);
 
   // Fetch Team Members & Invites
   const fetchTeam = useCallback(async () => {
-    if (!activeOrgId) {
+    if (!activeOrgId || !canViewTeam) {
       setTeamLoading(false);
       return;
     }
@@ -229,11 +242,11 @@ export default function SettingsPage() {
     } finally {
       setTeamLoading(false);
     }
-  }, [activeOrgId]);
+  }, [activeOrgId, canViewTeam]);
 
   // Fetch Access Requests (Owner / Admin)
   const fetchRequests = useCallback(async () => {
-    if (!activeOrgId || !isAdmin) return;
+    if (!activeOrgId || !canViewRequests) return;
     setRequestsLoading(true);
     setRequestsError(null);
     try {
@@ -245,11 +258,11 @@ export default function SettingsPage() {
     } finally {
       setRequestsLoading(false);
     }
-  }, [activeOrgId, isAdmin]);
+  }, [activeOrgId, canViewRequests]);
 
   // Fetch Activity Feed
   const fetchActivity = useCallback(async () => {
-    if (!activeOrgId) return;
+    if (!activeOrgId || !canViewActivity) return;
     setActivityLoading(true);
     setActivityError(null);
     try {
@@ -261,16 +274,14 @@ export default function SettingsPage() {
     } finally {
       setActivityLoading(false);
     }
-  }, [activeOrgId]);
+  }, [activeOrgId, canViewActivity]);
 
   useEffect(() => {
-    fetchKeys();
-    fetchTeam();
-    if (isAdmin) {
-      fetchRequests();
-    }
-    fetchActivity();
-  }, [fetchKeys, fetchTeam, fetchRequests, fetchActivity, isAdmin]);
+    if (canViewKeys) fetchKeys();
+    if (canViewTeam) fetchTeam();
+    if (canViewRequests) fetchRequests();
+    if (canViewActivity) fetchActivity();
+  }, [fetchKeys, fetchTeam, fetchRequests, fetchActivity, canViewKeys, canViewTeam, canViewRequests, canViewActivity]);
 
   // Fetch Audit Log (Owner / Admin), lazily when the tab is opened or filters change.
   const fetchAudit = useCallback(async () => {
@@ -1337,112 +1348,19 @@ export default function SettingsPage() {
 
       <div className="max-w-7xl mx-auto px-6 mt-8">
         <div className="flex flex-col md:flex-row gap-8">
-          {/* Sidebar Tabs */}
-          <div className="w-full md:w-64 flex-shrink-0 space-y-1">
-            {isAdmin && canManageKeys && !isAccessExpired && <button onClick={() => setActiveTab('sso')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl cursor-pointer ${activeTab === 'sso' ? 'bg-[#00eefc]/10 text-[#8ff5ff]' : 'text-[#a8abb3]'}`}><LuShieldCheck className="w-4 h-4" />Single sign-on</button>}
-            {canManagePrivacy && !isAccessExpired && <button onClick={() => setActiveTab('privacy')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl cursor-pointer ${activeTab === 'privacy' ? 'bg-[#00eefc]/10 text-[#8ff5ff]' : 'text-[#a8abb3]'}`}><LuShieldCheck className="w-4 h-4" />Privacy requests</button>}
-            {canManageKeys && !isAccessExpired && (
-              <button onClick={() => setActiveTab('redaction')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl cursor-pointer ${activeTab === 'redaction' ? 'bg-[#00eefc]/10 text-[#8ff5ff]' : 'text-[#a8abb3] hover:text-white'}`}>
-                <LuShieldCheck className="w-4 h-4" /> PII Redaction
-              </button>
-            )}
-            <button
-              onClick={() => setActiveTab('api-keys')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
-                activeTab === 'api-keys'
-                  ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/30 shadow-[0_0_15px_rgba(0,238,252,0.15)]'
-                  : 'text-[#a8abb3] hover:text-[#f1f3fc] hover:bg-[#11161d]'
-              }`}
-            >
-              <LuKey className="w-4 h-4" /> API Keys
-            </button>
-
-            <button
-              onClick={() => setActiveTab('team')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
-                activeTab === 'team'
-                  ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/30 shadow-[0_0_15px_rgba(0,238,252,0.15)]'
-                  : 'text-[#a8abb3] hover:text-[#f1f3fc] hover:bg-[#11161d]'
-              }`}
-            >
-              <LuUsers className="w-4 h-4" /> Team Members
-            </button>
-
-            {isAdmin && (
-              <button
-                onClick={() => setActiveTab('requests')}
-                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
-                  activeTab === 'requests'
-                    ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/30 shadow-[0_0_15px_rgba(0,238,252,0.15)]'
-                    : 'text-[#a8abb3] hover:text-[#f1f3fc] hover:bg-[#11161d]'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <LuShieldAlert className="w-4 h-4" /> Access Requests
-                </div>
-                {pendingRequestsCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-[#0a0e14]">
-                    {pendingRequestsCount}
-                  </span>
-                )}
-              </button>
-            )}
-
-            <button
-              onClick={() => setActiveTab('activity')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
-                activeTab === 'activity'
-                  ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/30 shadow-[0_0_15px_rgba(0,238,252,0.15)]'
-                  : 'text-[#a8abb3] hover:text-[#f1f3fc] hover:bg-[#11161d]'
-              }`}
-            >
-              <LuHistory className="w-4 h-4" /> Workspace Activity
-            </button>
-
-            {canViewAudit && (
-              <button
-                onClick={() => setActiveTab('audit')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
-                  activeTab === 'audit'
-                    ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/30 shadow-[0_0_15px_rgba(0,238,252,0.15)]'
-                    : 'text-[#a8abb3] hover:text-[#f1f3fc] hover:bg-[#11161d]'
-                }`}
-              >
-                <LuShieldCheck className="w-4 h-4" /> Audit Log
-              </button>
-            )}
-
-            <button
-              onClick={() => setActiveTab('billing')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
-                activeTab === 'billing'
-                  ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/30 shadow-[0_0_15px_rgba(0,238,252,0.15)]'
-                  : 'text-[#a8abb3] hover:text-[#f1f3fc] hover:bg-[#11161d]'
-              }`}
-            >
-              <LuCreditCard className="w-4 h-4" /> Billing
-            </button>
-
-            <button
-              onClick={() => setActiveTab('general')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all cursor-pointer ${
-                activeTab === 'general'
-                  ? 'bg-[#00eefc]/10 text-[#8ff5ff] border border-[#00eefc]/30 shadow-[0_0_15px_rgba(0,238,252,0.15)]'
-                  : 'text-[#a8abb3] hover:text-[#f1f3fc] hover:bg-[#11161d]'
-              }`}
-            >
-              <LuBuilding2 className="w-4 h-4" /> Workspace & Ownership
-            </button>
-          </div>
+          <SettingsSidebar access={tabAccess} activeTab={activeTab} onNavigate={setActiveTab} pendingRequestsCount={pendingRequestsCount} />
 
           {/* Tab Content */}
           <div className="flex-1 min-w-0">
-            {activeTab === 'sso' && isAdmin && canManageKeys && !isAccessExpired && activeOrgId && <SsoSettings key={activeOrgId} orgId={activeOrgId} />}
-            {activeTab === 'privacy' && canManagePrivacy && !isAccessExpired && activeOrgId && <PrivacyRequests key={activeOrgId} orgId={activeOrgId} />}
-            {activeTab === 'redaction' && canManageKeys && !isAccessExpired && activeOrgId && (
+            {!activeTab && <div role="alert" className="rounded-xl border border-amber-500/30 bg-[#11161d] p-6 space-y-3">
+              <h2 className="text-lg font-bold text-amber-300">Access Denied</h2>
+              <p className="text-sm text-[#a8abb3]">Your workspace role, plan, or access status does not permit this settings page.</p>
+              {canViewKeys && <button type="button" onClick={() => setActiveTab('api-keys')} className="rounded-lg px-4 py-2 text-sm font-bold bg-[#8ff5ff] text-[#0a0e14] hover:bg-[#00eefc] cursor-pointer">Back to API Keys</button>}
+            </div>}
+
+            {activeTab === 'sso' && activeOrgId && <SsoSettings key={activeOrgId} orgId={activeOrgId} />}
+            {activeTab === 'privacy' && activeOrgId && <PrivacyRequests key={activeOrgId} orgId={activeOrgId} />}
+            {activeTab === 'redaction' && activeOrgId && (
               <RedactionSettings key={activeOrgId} orgId={activeOrgId} />
             )}
             {/* TAB 1: API KEYS */}
@@ -2142,17 +2060,17 @@ export default function SettingsPage() {
       </div>
 
       {/* Render Modals */}
-      {generateModalOpen && GenerateKeyModal()}
-      {policyKey && policyKey.org_id === activeOrgId && canManageKeys && !isAccessExpired && (
+      {generateModalOpen && activeTab === 'api-keys' && canManageKeys && GenerateKeyModal()}
+      {policyKey && activeTab === 'api-keys' && policyKey.org_id === activeOrgId && canManageKeys && !isAccessExpired && (
         <KeyPolicyEditor key={policyKey.id} apiKey={policyKey} onClose={() => setPolicyKey(null)} onSaved={() => { setPolicyKey(null); fetchKeys(); }} />
       )}
-      {deleteKeyModalOpen && <DeleteKeyModal />}
-      {inviteModalOpen && <InviteMemberModal />}
-      {removeUserModalOpen && <RemoveUserModal />}
-      {editMemberModalOpen && <EditMemberModal />}
-      {approveModalOpen && <ApproveRequestModal />}
-      {rejectModalOpen && <RejectRequestModal />}
-      {transferModalOpen && <TransferOwnershipModal />}
+      {deleteKeyModalOpen && activeTab === 'api-keys' && canManageKeys && <DeleteKeyModal />}
+      {inviteModalOpen && activeTab === 'team' && isOwner && <InviteMemberModal />}
+      {removeUserModalOpen && activeTab === 'team' && isAdmin && <RemoveUserModal />}
+      {editMemberModalOpen && activeTab === 'team' && isOwner && <EditMemberModal />}
+      {approveModalOpen && activeTab === 'requests' && <ApproveRequestModal />}
+      {rejectModalOpen && activeTab === 'requests' && <RejectRequestModal />}
+      {transferModalOpen && activeTab === 'general' && isOwner && <TransferOwnershipModal />}
     </div>
   );
 }
