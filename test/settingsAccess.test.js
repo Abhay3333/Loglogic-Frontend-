@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { settingsAccess, visibleSettingsSections, resolveSettingsTab } from '../src/lib/settingsAccess.js';
@@ -70,8 +71,8 @@ test('rendered dark-mode sidebar hides gated labels and marks the current tab', 
   const { default: react } = await import('@vitejs/plugin-react');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const server = await createServer({ configFile: false, plugins: [react()],
-    server: { middlewareMode: true, hmr: false }, appType: 'custom', optimizeDeps: { noDiscovery: true, include: [] } });
+  const server = await createServer({ cacheDir: fileURLToPath(new URL('../../.gravitas/sessions/phase17-docs/vite-cache/settings-ui', import.meta.url)), configFile: false, plugins: [react()],
+    server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', optimizeDeps: { noDiscovery: true, include: [] } });
   try {
     const { default: Sidebar } = await server.ssrLoadModule('/src/components/SettingsSidebar.jsx');
     const render = (role, tier, activeTab = 'api-keys') => renderToStaticMarkup(createElement(Sidebar, {

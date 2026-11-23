@@ -1,248 +1,98 @@
-import React from 'react'
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import DocsCode from '../components/DocsCode';
+import DocsReference from '../components/DocsReference';
+import DocsPlayground from '../components/DocsPlayground';
+import { docsApiBase } from '../lib/docsApi';
+import { guides } from '../docs/guides';
 
-const curlExample = `curl -X POST https://api.loglogic.io/v1/ingest \\
-  -H "Content-Type: application/json" \\
-  -H "X-API-KEY: YOUR_LOGLOGIC_API_KEY" \\
-  -d '{
-    "level": "INFO",
-    "service": "billing-service",
-    "message": "Invoice generated successfully",
-    "meta": {
-      "requestId": "req_01J9XZ...",
-      "userId": "usr_4831",
-      "latencyMs": 42
-    }
-  }'`
-
-const nodeExample = `const apiKey = process.env.LOGLOGIC_API_KEY;
-
-const payload = {
-  level: 'INFO',
-  service: 'billing-service',
-  message: 'Invoice generated successfully',
-  meta: {
-    requestId: 'req_01J9XZ...',
-    userId: 'usr_4831',
-    latencyMs: 42,
-  },
-};
-
-const response = await fetch('https://api.loglogic.io/v1/ingest', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-API-KEY': apiKey,
-  },
-  body: JSON.stringify(payload),
-});
-
-if (!response.ok) {
-  console.error('LogLogic ingest failed:', response.status, await response.text());
-}`
-
-const pythonExample = `import os
-import requests
-
-api_key = os.environ.get("LOGLOGIC_API_KEY")
-
-payload = {
-    "level": "INFO",
-    "service": "billing-service",
-    "message": "Invoice generated successfully",
-    "meta": {
-        "requestId": "req_01J9XZ...",
-        "userId": "usr_4831",
-        "latencyMs": 42
-    }
+function GuideFiles({ guide }) {
+    const [files, setFiles] = useState(null);
+    const [error, setError] = useState('');
+    useEffect(() => {
+        const controller = new AbortController();
+        Promise.all(guide.files.map(async (name) => {
+            const response = await fetch(`${import.meta.env.BASE_URL}guides/${name}`, { credentials: 'omit', signal: controller.signal });
+            if (!response.ok) throw new Error('Example unavailable');
+            return { name, text: await response.text() };
+        })).then(setFiles).catch(() => { if (!controller.signal.aborted) setError('Unable to load example files. Reload to retry.'); });
+        return () => controller.abort();
+    }, [guide]);
+    return <div>{error && <p role="alert">{error}</p>}{!files && !error && <p role="status">Loading examples...</p>}
+        {files?.map(({ name, text }) => <div key={name}>
+            <a href={`${import.meta.env.BASE_URL}guides/${name}`} download={name} className="text-primary underline">Download {name}</a>
+            <DocsCode label={name} code={text} />
+        </div>)}
+    </div>;
 }
 
-response = requests.post(
-    "https://api.loglogic.io/v1/ingest",
-    headers={
-        "Content-Type": "application/json",
-        "X-API-KEY": api_key
-    },
-    json=payload,
-    timeout=5,
-)
-
-if response.status_code != 202:
-    print("LogLogic ingest failed:", response.status_code, response.text)`
-
-const DocsPage = () => {
-  return (
-    <div>
-      <meta charSet="utf-8" />
-      <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-      <style dangerouslySetInnerHTML={{ __html: "\n        body { font-family: 'Inter', sans-serif; background-color: #0a0e14; color: #f1f3fc; }\n        .font-headline { font-family: 'Space Grotesk', sans-serif; }\n        .font-mono { font-family: 'JetBrains Mono', monospace; }\n      " }} />
-
-      <main className="pt-28 pb-24 px-6 bg-[#0a0e14]">
-        <section className="max-w-6xl mx-auto mb-14">
-          <p className="text-xs uppercase tracking-[0.22em] text-[#8ff5ff] font-semibold mb-4">Developer Docs</p>
-          <h1 className="font-headline text-4xl md:text-6xl font-bold tracking-tight text-white mb-4">LogLogic Ingestion API</h1>
-          <p className="text-[#a8abb3] max-w-3xl leading-relaxed text-base md:text-lg">
-            High-performance, centralized logging for modern services. This page gets you from API key to first live log event in under a minute.
-          </p>
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#00eefc]/30 bg-[#00eefc]/10 px-4 py-1.5 font-mono text-xs text-[#8ff5ff] uppercase tracking-widest">
-            Endpoint: POST /v1/ingest
-          </div>
-        </section>
-
-        <section className="max-w-6xl mx-auto space-y-8">
-          <article className="rounded-2xl border border-white/10 bg-[#11161d] p-6 md:p-8">
-            <h2 className="font-headline text-2xl md:text-3xl font-bold text-white mb-6">1. Quick Start Guide (The "Time to Value" Section)</h2>
-            <ol className="space-y-6 text-[#d3d6dd] leading-relaxed">
-              <li>
-                <p className="font-semibold text-white mb-2">Step 1: Get your API Key.</p>
-                <p>
-                  In your LogLogic dashboard, open <span className="font-mono text-[#8ff5ff]">Settings -&gt; API Keys</span> and create a key for your environment
-                  (for example: development, staging, production).
-                </p>
-              </li>
-              <li>
-                <p className="font-semibold text-white mb-2">Step 2: Make your first request.</p>
-                <p>
-                  Send a JSON log payload to <span className="font-mono text-[#8ff5ff]">https://api.loglogic.io/v1/ingest</span> using the
-                  <span className="font-mono text-[#8ff5ff]"> X-API-KEY</span> header.
-                </p>
-              </li>
-              <li>
-                <p className="font-semibold text-white mb-2">Step 3: View it on the Live-Tail dashboard.</p>
-                <p>
-                  Open <span className="font-mono text-[#8ff5ff]">Live-Tail</span> in your dashboard and filter by your
-                  <span className="font-mono text-[#8ff5ff]"> service</span> field to verify ingestion in real time.
-                </p>
-              </li>
-            </ol>
-          </article>
-
-          <article className="rounded-2xl border border-white/10 bg-[#11161d] p-6 md:p-8">
-            <h2 className="font-headline text-2xl md:text-3xl font-bold text-white mb-4">2. Authentication</h2>
-            <p className="text-[#d3d6dd] leading-relaxed mb-4">
-              Authenticate every ingestion request with your API key in the <span className="font-mono text-[#8ff5ff]">X-API-KEY</span> header.
-            </p>
-            <pre className="rounded-xl bg-[#0a0e14] border border-white/10 p-4 overflow-x-auto text-sm font-mono text-[#c6f8ff]">
-              <code>{`X-API-KEY: YOUR_LOGLOGIC_API_KEY`}</code>
-            </pre>
-            <div className="mt-4 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200 leading-relaxed">
-              Security warning: never commit API keys to public repositories. Store them in environment variables or your secret manager.
+export default function DocsPage() {
+    const [params, setParams] = useSearchParams();
+    const guide = guides.find((item) => item.id === params.get('guide')) || guides[0];
+    const sample = JSON.stringify({ service: 'docs-demo', level: 'info', message: 'Hello from LogLogic', metadata: { source: 'quickstart' } }, null, 2);
+    const env = `LOGLOGIC_URL=${docsApiBase}\nLOGLOGIC_API_KEY=<your-ingestion-key>`;
+    const curl = `curl --max-time 5 -X POST "$LOGLOGIC_URL/v1/ingest" -H "Content-Type: application/json" -H "X-API-KEY: $LOGLOGIC_API_KEY" --data '${sample}'`;
+    const powershell = `Invoke-RestMethod -Method Post -Uri "$env:LOGLOGIC_URL/v1/ingest" -Headers @{"X-API-KEY"=$env:LOGLOGIC_API_KEY} -ContentType "application/json" -Body '${sample}'`;
+    return <main className="min-h-screen pt-28 pb-20 px-4 md:px-8 bg-background text-on-surface">
+        <div className="max-w-7xl mx-auto lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] gap-10">
+            <aside className="mb-8 lg:mb-0"><nav aria-label="Documentation" className="lg:sticky lg:top-24 flex lg:flex-col flex-wrap gap-4 text-sm">
+                <a href="#quickstart" className="text-primary">Quickstart</a><a href="#authentication">Authentication</a>
+                <a href="#guides">Integration guides</a><a href="#reference">API reference</a><a href="#playground">Playground</a><a href="#troubleshooting">Troubleshooting</a>
+            </nav></aside>
+            <div className="min-w-0 space-y-12">
+                <header><h1 className="text-4xl md:text-5xl font-bold">Developer documentation</h1><p className="mt-4 text-on-surface-variant">Send your first event, integrate your service and explore the API.</p></header>
+                <section id="quickstart" className="scroll-mt-28 space-y-4">
+                    <h2 className="text-2xl font-bold">Quickstart</h2>
+                    <ol className="list-decimal pl-6 space-y-3">
+                        <li><Link to="/app/onboarding" className="text-primary underline">Create a workspace</Link> or open your existing workspace.</li>
+                        <li>Open <Link to="/app/settings?tab=api-keys" className="text-primary underline">Settings / API Keys</Link> and create an ingestion-scoped key. The raw key is shown once.</li>
+                        <li>Set these environment values on your server. Use your deployed HTTPS backend or localhost for local development.</li>
+                    </ol>
+                    <DocsCode label="Server environment" code={env} />
+                    <p>In a POSIX shell, export the variables. In PowerShell use <code>$env:LOGLOGIC_URL</code> and <code>$env:LOGLOGIC_API_KEY</code>. Keep the values in a private environment file or secret manager.</p>
+                    <details open><summary className="text-primary cursor-pointer">Send with curl (POSIX shell)</summary><DocsCode label="curl" code={curl} /></details>
+                    <details><summary className="text-primary cursor-pointer">Send with PowerShell</summary><DocsCode label="PowerShell" code={powershell} /></details>
+                    <p>After HTTP 202, open <Link to="/app/logs" className="text-primary underline">Historical Logs</Link> and search for service <code>docs-demo</code>. <Link to="/app/live" className="text-primary underline">Live Tail</Link> requires Pro or Enterprise and log-view permission.</p>
+                </section>
+                <section id="authentication" className="scroll-mt-28 space-y-4">
+                    <h2 className="text-2xl font-bold">Authentication and delivery</h2>
+                    <ul className="list-disc pl-5 space-y-3">
+                        <li><code>X-API-KEY</code> with <code>logs:ingest</code> sends events. <code>logs:query</code> grants query/statistics reads. The key fixes the tenant. Optional CIDRs restrict the requesting IP.</li>
+                        <li>Bearer sessions use workspace membership, permissions, temporary-access expiry and SSO policy. Query/statistics accept either method. Key management, saved queries, CSV exports and live streams require sessions.</li>
+                        <li>Use exactly one authentication method. Keep keys server-side. Playground inputs stay in memory and are cleared when the endpoint, authentication method or session changes.</li>
+                        <li>Send <code>metadata</code> for structured attributes. Logs require service, level and message. See the schema for accepted levels, timestamps and batch formats.</li>
+                        <li>HTTP 202 acknowledges the buffer. It includes any privacy-suppressed count. Verify persisted events after the worker processes them. Delivery retries can duplicate a newly submitted request after an ambiguous timeout.</li>
+                    </ul>
+                </section>
+                <section id="guides" className="scroll-mt-28 space-y-5">
+                    <h2 className="text-2xl font-bold">Integration guides</h2>
+                    <label className="block">Platform<select value={guide.id} onChange={(event) => setParams({ guide: event.target.value })} className="block mt-2 w-full rounded border border-outline-variant bg-surface-container-high p-3">
+                        {guides.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                    </select></label>
+                    <article className="rounded-xl border border-outline-variant p-5 md:p-7 space-y-4">
+                        <h3 className="text-xl font-bold">{guide.title}</h3><p>{guide.requirement}</p>
+                        <p className="text-sm text-on-surface-variant">Commands use a POSIX shell, including WSL or Git Bash on Windows. The Quickstart includes a PowerShell request.</p>
+                        <ol className="list-decimal pl-6 space-y-3">{guide.steps.map((step) => <li key={step}>{step}</li>)}</ol>
+                        <DocsCode label="Setup and run" code={guide.command} />
+                        <p className="text-sm text-on-surface-variant">{guide.note}</p>
+                        <a href={guide.source} target="_blank" rel="noreferrer" className="text-primary underline">Official platform reference</a>
+                        <GuideFiles key={guide.id} guide={guide} />
+                    </article>
+                </section>
+                <DocsReference />
+                <DocsPlayground />
+                <section id="troubleshooting" className="scroll-mt-28 space-y-4">
+                    <h2 className="text-2xl font-bold">Troubleshooting</h2>
+                    <dl className="space-y-4">
+                        <div><dt className="font-bold">400 / 413</dt><dd>Check field names, JSON, ISO dates and body size. A batch allows up to 1,000 logs, while Kafka also limits the serialized record to 900,000 bytes. Split large batches.</dd></div>
+                        <div><dt className="font-bold">401 / 403 / 402</dt><dd>Check credentials, key scope/CIDRs, workspace permissions, expiry, SSO enforcement and ingestion suspension. A 402 on Live Tail indicates a plan requirement.</dd></div>
+                        <div><dt className="font-bold">429</dt><dd>Queue backpressure includes Retry-After 5. Monthly quota rejection needs a plan or cap change. Inspect the response code before retrying.</dd></div>
+                        <div><dt className="font-bold">503 or browser connection error</dt><dd>Check dependency readiness and the configured frontend origin in backend CORS. The playground uses the same API configuration as the application. A browser-blocked response can follow server acceptance.</dd></div>
+                        <div><dt className="font-bold">Accepted event is missing</dt><dd>Check the selected workspace, service, date filters, worker readiness, queue lag and privacy-suppressed count. Query totals reflect retained data. Statistics can be cached for up to 60 seconds.</dd></div>
+                    </dl>
+                    <p>Team/access, billing, alerting, integrations, audit/privacy/SSO and platform administration retain their application-specific permissions. Configure those features through Workspace Settings or the platform console.</p>
+                </section>
             </div>
-          </article>
-
-          <article className="rounded-2xl border border-white/10 bg-[#11161d] p-6 md:p-8">
-            <h2 className="font-headline text-2xl md:text-3xl font-bold text-white mb-4">3. API Reference: The Ingestion Endpoint</h2>
-            <p className="text-[#d3d6dd] leading-relaxed mb-4">
-              <span className="font-mono text-[#8ff5ff]">POST https://api.loglogic.io/v1/ingest</span>
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="py-3 pr-4 text-left text-[#8ff5ff] font-semibold">Field</th>
-                    <th className="py-3 pr-4 text-left text-[#8ff5ff] font-semibold">Type</th>
-                    <th className="py-3 pr-4 text-left text-[#8ff5ff] font-semibold">Required</th>
-                    <th className="py-3 text-left text-[#8ff5ff] font-semibold">Description</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10 text-[#d3d6dd]">
-                  <tr>
-                    <td className="py-3 pr-4 font-mono">level</td>
-                    <td className="py-3 pr-4">String</td>
-                    <td className="py-3 pr-4">Yes</td>
-                    <td className="py-3">Must be one of: <span className="font-mono">INFO</span>, <span className="font-mono">WARN</span>, <span className="font-mono">ERROR</span>, <span className="font-mono">DEBUG</span>.</td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 pr-4 font-mono">service</td>
-                    <td className="py-3 pr-4">String</td>
-                    <td className="py-3 pr-4">Yes</td>
-                    <td className="py-3">The microservice name sending the log (for example: <span className="font-mono">auth-service</span>).</td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 pr-4 font-mono">message</td>
-                    <td className="py-3 pr-4">String</td>
-                    <td className="py-3 pr-4">Yes</td>
-                    <td className="py-3">The core log message.</td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 pr-4 font-mono">meta</td>
-                    <td className="py-3 pr-4">Object</td>
-                    <td className="py-3 pr-4">No</td>
-                    <td className="py-3">Flexible JSON object for custom fields such as user IDs, latency, region, and stack traces.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-
-          <article className="rounded-2xl border border-white/10 bg-[#11161d] p-6 md:p-8">
-            <h2 className="font-headline text-2xl md:text-3xl font-bold text-white mb-6">4. Code Examples (Crucial)</h2>
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-semibold text-white mb-2">Raw cURL</h3>
-                <pre className="rounded-xl bg-[#0a0e14] border border-white/10 p-4 overflow-x-auto text-sm font-mono text-[#c6f8ff]">
-                  <code>{curlExample}</code>
-                </pre>
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-2">Node.js (using fetch)</h3>
-                <pre className="rounded-xl bg-[#0a0e14] border border-white/10 p-4 overflow-x-auto text-sm font-mono text-[#c6f8ff]">
-                  <code>{nodeExample}</code>
-                </pre>
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-2">Python (using requests library)</h3>
-                <pre className="rounded-xl bg-[#0a0e14] border border-white/10 p-4 overflow-x-auto text-sm font-mono text-[#c6f8ff]">
-                  <code>{pythonExample}</code>
-                </pre>
-              </div>
-            </div>
-          </article>
-
-          <article className="rounded-2xl border border-white/10 bg-[#11161d] p-6 md:p-8">
-            <h2 className="font-headline text-2xl md:text-3xl font-bold text-white mb-4">5. Response Codes &amp; Error Handling</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="py-3 pr-4 text-left text-[#8ff5ff] font-semibold">Status</th>
-                    <th className="py-3 text-left text-[#8ff5ff] font-semibold">Meaning</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10 text-[#d3d6dd]">
-                  <tr>
-                    <td className="py-3 pr-4 font-mono">202 Accepted</td>
-                    <td className="py-3">Log successfully queued for processing.</td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 pr-4 font-mono">401 Unauthorized</td>
-                    <td className="py-3">Missing API key or invalid API key.</td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 pr-4 font-mono">429 Too Many Requests</td>
-                    <td className="py-3">Rate limit exceeded for your project or API key.</td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 pr-4 font-mono">413 Payload Too Large</td>
-                    <td className="py-3">Request body exceeds the 1MB JSON payload limit.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-
-          <article className="rounded-2xl border border-white/10 bg-[#11161d] p-6 md:p-8">
-            <h2 className="font-headline text-2xl md:text-3xl font-bold text-white mb-4">6. Best Practices</h2>
-            <ul className="list-disc pl-6 text-[#d3d6dd] space-y-3 leading-relaxed">
-              <li>Send logs asynchronously so ingestion does not block your main app thread or request lifecycle.</li>
-              <li>Keep your <span className="font-mono text-[#8ff5ff]">meta</span> object structure consistent across services for easier filtering, aggregation, and alert rules.</li>
-              <li>Use stable field names (for example: <span className="font-mono">requestId</span>, <span className="font-mono">userId</span>, <span className="font-mono">latencyMs</span>) to improve query performance and team-wide readability.</li>
-            </ul>
-          </article>
-        </section>
-      </main>
-    </div>
-  )
+        </div>
+    </main>;
 }
-
-export default DocsPage

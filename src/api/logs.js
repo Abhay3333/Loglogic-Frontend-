@@ -11,10 +11,11 @@ const getAuthToken = async () => {
 /**
  * Query logs with pagination, search, level filtering, and time ranges
  */
-export const queryLogs = async (params = {}) => {
+export const queryLogs = async (params = {}, signal) => {
     const token = await getAuthToken();
 
     const response = await axios.post(`${BASE_URL}/v1/logs/query`, params, {
+        signal,
         headers: {
             Authorization: `Bearer ${token}`
         },
@@ -93,10 +94,17 @@ export const deleteSavedQuery = async (queryId) => {
     return response.data;
 };
 
-// Export logs directly as a Blob (replaces token-in-url method)
+// Download from S3, with support for the direct CSV fallback.
 export const exportLogsCsv = async (params = {}) => {
     const token = await getAuthToken();
-    const qs = new URLSearchParams(params).toString();
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        if (value === undefined || value === null || value === '') continue;
+        for (const item of Array.isArray(value) ? value : [value]) {
+            query.append(key, item);
+        }
+    }
+    const qs = query.toString();
     const response = await fetch(`${BASE_URL}/v1/logs/export?${qs}`, {
         method: 'GET',
         headers: {
@@ -108,12 +116,26 @@ export const exportLogsCsv = async (params = {}) => {
         let errorMessage = `Export failed with status: ${response.status}`;
         try {
             const errorData = await response.json();
-            if (errorData.message) errorMessage = errorData.message;
-        } catch (e) {
+            if (errorData.message || errorData.error) errorMessage = errorData.message || errorData.error;
+        } catch {
             // Ignore if not JSON
         }
         throw new Error(errorMessage);
     }
     
-    return await response.blob();
+    if (response.headers.get('content-type')?.includes('application/json')) {
+        const { url } = await response.json();
+        if (!url) throw new Error('Export response is missing the download URL.');
+        window.location.href = url;
+        return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `loglogic_${params.orgId || 'export'}_${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 };

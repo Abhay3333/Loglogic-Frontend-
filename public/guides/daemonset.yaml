@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: loglogic-forwarder
+spec:
+  selector:
+    matchLabels:
+      app: loglogic-forwarder
+  template:
+    metadata:
+      labels:
+        app: loglogic-forwarder
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: forwarder
+          image: python:3.12-alpine
+          command: ["python", "-u", "/app/forwarder.py"]
+          envFrom:
+            - secretRef:
+                name: loglogic-ingestion
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: scripts
+              mountPath: /app
+              readOnly: true
+            - name: logs
+              mountPath: /var/log
+              readOnly: true
+            - name: state
+              mountPath: /state
+      volumes:
+        - name: scripts
+          configMap:
+            name: loglogic-forwarder
+        - name: logs
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: state
+          hostPath:
+            path: /var/lib/loglogic-forwarder
+            type: DirectoryOrCreate

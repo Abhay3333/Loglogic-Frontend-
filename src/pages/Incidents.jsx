@@ -1,3 +1,5 @@
+import { AIPostMortemButton } from '../components/AIActions';
+import { can } from '../lib/permissions';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
@@ -35,7 +37,7 @@ const EVENT_META = {
 export default function IncidentsPage() {
   const navigate = useNavigate();
   const outletContext = useOutletContext() || {};
-  const { organizations = [], currentOrg } = outletContext;
+  const { organizations = [], currentOrg, isAccessExpired } = outletContext;
   const activeOrg = currentOrg || organizations[0] || null;
   const orgId = activeOrg?.id || null;
   const canManage = activeOrg?.role === 'owner' || activeOrg?.role === 'admin';
@@ -179,6 +181,7 @@ export default function IncidentsPage() {
                       <LuRefreshCw className="w-4 h-4" />
                     </button>
                   </div>
+                  {!isAccessExpired && can(activeOrg?.role, 'can_export_logs') && can(activeOrg?.role, 'can_view_logs') && <div className="mt-4"><AIPostMortemButton key={`${orgId}:${incident.id}`} orgId={orgId} incidentId={incident.id} /></div>}
                   {canManage && incident.status !== 'resolved' && (
                     <div className="flex items-center gap-2 mt-4">
                       {incident.status !== 'acknowledged' && (

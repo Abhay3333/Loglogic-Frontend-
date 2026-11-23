@@ -1,3 +1,5 @@
+import { AIAnalyzeButton } from '../components/AIActions'
+import { can } from '../lib/permissions'
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useOutletContext, useNavigate } from 'react-router-dom'
 import { getOrgServices, openLogStream, queryLogs } from '../api/logs'
@@ -51,6 +53,7 @@ const LiveTailPage = () => {
   const sourceRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const generationRef = useRef(0);
+  const connectRef = useRef(() => {});
   const streamingRef = useRef(!isAccessExpired);
   const autoScrollRef = useRef(true);
 
@@ -69,6 +72,8 @@ const LiveTailPage = () => {
   const [transport, setTransport] = useState(null);
 
   const activeOrgId = currentOrg?.id || (organizations.length > 0 ? organizations[0].id : null);
+  const activeOrg = currentOrg || organizations[0] || null;
+  const canAnalyze = !isAccessExpired && can(activeOrg?.role, 'can_view_logs');
   const currentOrgName = currentOrg?.name || (organizations.length > 0 ? organizations[0].name : 'Workspace');
 
   useEffect(() => {
@@ -142,8 +147,6 @@ const LiveTailPage = () => {
     }, delayMs);
   }, []);
 
-  const connectRef = useRef(() => {});
-
   const connect = useCallback(async () => {
     if (!activeOrgId || !streamingRef.current || isAccessExpired) return;
     const generation = ++generationRef.current;
@@ -153,7 +156,7 @@ const LiveTailPage = () => {
     let source;
     try {
       source = await openLogStream(activeOrgId);
-    } catch (err) {
+    } catch {
       console.error('Live tail connect failed');
       if (generation !== generationRef.current || !streamingRef.current) return;
       setConnection('reconnecting');
@@ -245,6 +248,8 @@ const LiveTailPage = () => {
     if (!isStreaming || isAccessExpired || !activeOrgId || !transport) {
       closeSource();
       generationRef.current += 1;
+      // Connection status is synchronized with subscription setup and teardown.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (!isStreaming || isAccessExpired) setConnection('paused');
       return undefined;
     }
@@ -475,7 +480,6 @@ const LiveTailPage = () => {
               const normLevel = String(log.level || 'info').toUpperCase();
               const isExpanded = expandedId === logId;
               const meta = log.metadata || {};
-              const hasMeta = meta && typeof meta === 'object' && Object.keys(meta).length > 0;
 
               return (
                 <div
@@ -500,27 +504,36 @@ const LiveTailPage = () => {
                       {copiedKey === `${logId}:msg` ? 'Copied' : 'Copy message'}
                     </button>
 
-                    {hasMeta && (
-                      <button
+                    <button
                         className="opacity-0 group-hover:opacity-100 text-[10px] text-cyan-400 hover:underline cursor-pointer transition-opacity"
                         onClick={() => toggleExpand(logId)}
                         type="button"
                       >
                         {isExpanded ? 'Collapse JSON' : 'Expand JSON'}
-                      </button>
-                    )}
+                    </button>
                   </div>
 
-                  {isExpanded && hasMeta && (
-                    <div className="mt-2 rounded bg-black/70 border border-zinc-800 p-3 text-xs relative">
-                      <button
-                        className="absolute right-2 top-2 p-1 text-zinc-400 hover:text-white cursor-pointer"
-                        onClick={() => copyText(`${logId}:json`, JSON.stringify(meta, null, 2))}
-                        title="Copy JSON"
-                        type="button"
-                      >
-                        {copiedKey === `${logId}:json` ? <FiCheck className="text-emerald-400" /> : <FiCopy />}
-                      </button>
+                  {isExpanded && (
+                    <div className="mt-2 rounded bg-black/70 border border-zinc-800 p-3 text-xs">
+                      <div className="mb-3 flex flex-wrap items-center gap-3 border-b border-zinc-800 pb-3">
+                        <button
+                          className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-white"
+                          onClick={() => copyText(logId + ':json', JSON.stringify(meta, null, 2))}
+                          title="Copy JSON"
+                          type="button"
+                        >
+                          {copiedKey === logId + ':json' ? <FiCheck className="text-emerald-400" /> : <FiCopy />}
+                          Copy JSON
+                        </button>
+                        <button
+                          className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-white"
+                          onClick={() => copyText(logId + ':msg', String(log.message || ''))}
+                          type="button"
+                        >
+                          <FiCopy /> Copy Message
+                        </button>
+                        {canAnalyze && <AIAnalyzeButton key={activeOrgId + ':' + logId} orgId={activeOrgId} logId={logId} />}
+                      </div>
                       <pre className="text-zinc-300 text-[11px] overflow-x-auto custom-scrollbar">
                         {JSON.stringify(meta, null, 2)}
                       </pre>

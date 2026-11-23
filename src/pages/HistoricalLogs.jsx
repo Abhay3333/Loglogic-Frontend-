@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { AIAnalyzeButton, AIQueryButton } from '../components/AIActions';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { queryLogs, getOrgServices, getSavedQueries, createSavedQuery, exportLogsCsv, getLogStats } from '../api/logs';
 import { listIntegrations, createIssueFromLog } from '../api/integrations';
@@ -69,6 +70,8 @@ export default function HistoricalLogs() {
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
+  const [aiSearch, setAiSearch] = useState(null);
+  const logsRequest = useRef(null);
   const [timeRange, setTimeRange] = useState('24h');
   const [selectedLevels, setSelectedLevels] = useState(['ERROR', 'WARN', 'INFO', 'DEBUG']);
   const [availableServices, setAvailableServices] = useState([]);
@@ -91,6 +94,8 @@ export default function HistoricalLogs() {
   const activeOrg = currentOrg || organizations[0] || null;
   const canManage = activeOrg?.role === 'owner' || activeOrg?.role === 'admin';
   const canExport = can(activeOrg?.role, 'can_export_logs');
+  const currentAIFilter = aiSearch?.orgId === activeOrgId ? aiSearch.filter : null;
+  useEffect(() => () => logsRequest.current?.abort(), [activeOrgId]);
 
   // Issue-tracker integrations for "Create Issue" from a log.
   const [issueIntegrations, setIssueIntegrations] = useState([]);
@@ -144,6 +149,9 @@ export default function HistoricalLogs() {
   // Fetch logs
   const fetchLogs = useCallback(async (pageToFetch = 1) => {
     if (!activeOrgId || isAccessExpired) return;
+    logsRequest.current?.abort();
+    const controller = new AbortController();
+    logsRequest.current = controller;
     setIsLoading(true);
 
     try {
@@ -157,22 +165,24 @@ export default function HistoricalLogs() {
 
       const response = await queryLogs({
         orgId: activeOrgId,
-        levels: selectedLevels.map(l => l.toLowerCase()),
-        service: selectedService || undefined,
-        search: searchQuery || undefined,
-        startDate: startDate || undefined,
+        levels: currentAIFilter ? undefined : selectedLevels.map(l => l.toLowerCase()),
+        service: currentAIFilter ? undefined : selectedService || undefined,
+        search: currentAIFilter ? undefined : searchQuery || undefined,
+        startDate: currentAIFilter ? undefined : startDate || undefined,
+        aiFilter: currentAIFilter || undefined,
         page: pageToFetch,
         limit: 50
-      });
+      }, controller.signal);
+      if (controller.signal.aborted) return;
 
       setLogs(response.logs || []);
       setPagination(response.pagination || { page: pageToFetch, limit: 50, total: 0, totalPages: 1 });
-    } catch (err) {
-      console.error("Error querying logs:", err);
+    } catch {
+      if (!controller.signal.aborted) console.error("Log query failed.");
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) setIsLoading(false);
     }
-  }, [activeOrgId, timeRange, selectedLevels, selectedService, searchQuery]);
+  }, [activeOrgId, isAccessExpired, timeRange, selectedLevels, selectedService, searchQuery, currentAIFilter]);
 
   const loadSavedQueries = useCallback(async () => {
     if (activeOrgId && !isAccessExpired) {
@@ -247,22 +257,15 @@ export default function HistoricalLogs() {
       else if (timeRange === '7d') startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
       else if (timeRange === '30d') startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-      const blob = await exportLogsCsv({
+      await exportLogsCsv({
         orgId: activeOrgId,
-        levels: selectedLevels.map(l => l.toLowerCase()),
-        service: selectedService || undefined,
-        search: searchQuery || undefined,
-        startDate: startDate || undefined
+        levels: currentAIFilter ? undefined : selectedLevels.map(l => l.toLowerCase()),
+        service: currentAIFilter ? undefined : selectedService || undefined,
+        search: currentAIFilter ? undefined : searchQuery || undefined,
+        startDate: currentAIFilter ? undefined : startDate || undefined,
+        aiFilter: currentAIFilter ? JSON.stringify(currentAIFilter) : undefined
       });
       
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `loglogic_${activeOrgId}_${Date.now()}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      URL.revokeObjectURL(url);
-      document.body.removeChild(link);
     } catch (err) {
       console.error("Export error:", err);
       alert(err.message);
@@ -276,7 +279,7 @@ export default function HistoricalLogs() {
       await createSavedQuery({
         orgId: activeOrgId,
         name: newQueryName,
-        query_filter: { timeRange, selectedLevels, selectedService, searchQuery }
+        query_filter: { timeRange, selectedLevels, selectedService, searchQuery, aiFilter: currentAIFilter }
       });
       setShowSaveQueryModal(false);
       setNewQueryName('');
@@ -290,6 +293,8 @@ export default function HistoricalLogs() {
 
   const applySavedQuery = (query) => {
     const filter = query.query_filter || {};
+    setAiSearch(filter.aiFilter ? { orgId: activeOrgId, filter: filter.aiFilter } : null);
+    setIsChartVisible(false);
     setTimeRange(filter.timeRange || '24h');
     setSelectedLevels(filter.selectedLevels || ['ERROR', 'WARN', 'INFO', 'DEBUG']);
     setSelectedService(filter.selectedService || '');
@@ -329,6 +334,7 @@ export default function HistoricalLogs() {
             </div>
             <div className="flex items-center gap-3">
               <button
+                disabled={Boolean(currentAIFilter)}
                 onClick={() => setIsChartVisible(!isChartVisible)}
                 className={`p-2 rounded-md transition-colors cursor-pointer ${isChartVisible ? 'text-[#00eefc] bg-[#00eefc]/10' : 'text-[#7f8594] hover:text-[#8ff5ff] hover:bg-[#8ff5ff]/10'}`}
                 title="Toggle Log Volume Chart"
@@ -398,6 +404,7 @@ export default function HistoricalLogs() {
               </div>
               <select
                 className="bg-[#11161d] border border-[#44484f]/30 text-[#f1f3fc] text-sm rounded-md focus:border-[#8ff5ff]/50 focus:ring-1 focus:ring-[#8ff5ff]/50 focus:outline-none block w-full pl-9 pr-8 py-2 appearance-none cursor-pointer hover:border-[#44484f]/60 transition-colors"
+                disabled={Boolean(currentAIFilter)}
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value)}
               >
@@ -419,12 +426,14 @@ export default function HistoricalLogs() {
                 type="text"
                 placeholder='Search logs or use filters (e.g. metadata.userId:"123")'
                 className="bg-[#11161d] border border-[#44484f]/30 text-[#f1f3fc] text-sm rounded-md focus:border-[#8ff5ff]/50 focus:ring-1 focus:ring-[#8ff5ff]/50 focus:outline-none block w-full pl-10 pr-10 py-2 placeholder-[#7f8594] transition-colors hover:border-[#44484f]/60"
+                disabled={Boolean(currentAIFilter)}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
               {searchQuery && (
                 <button 
+                  disabled={Boolean(currentAIFilter)}
                   onClick={() => { setSearchQuery(''); fetchLogs(1); }}
                   className="absolute right-8 top-1/2 -translate-y-1/2 text-[#7f8594] hover:text-[#f1f3fc] cursor-pointer"
                 >
@@ -444,6 +453,10 @@ export default function HistoricalLogs() {
               </div>
             </div>
 
+            {can(activeOrg?.role, 'can_view_logs') && !isAccessExpired && <AIQueryButton key={activeOrgId} orgId={activeOrgId} onApply={filter => {
+              setAiSearch({ orgId: activeOrgId, filter }); setIsChartVisible(false);
+            }} />}
+
             {/* Multi-Select: Level */}
             <div className="relative group">
               <button className="bg-[#11161d] border border-[#44484f]/30 text-[#f1f3fc] text-sm rounded-md px-3 py-2 flex items-center gap-2 hover:border-[#44484f]/60 transition-colors cursor-pointer">
@@ -456,6 +469,7 @@ export default function HistoricalLogs() {
                     <input
                       type="checkbox"
                       className="rounded bg-[#0a0e14] border-[#44484f]/50 text-[#00eefc] focus:ring-[#00eefc]"
+                      disabled={Boolean(currentAIFilter)}
                       checked={selectedLevels.includes(level)}
                       onChange={() => toggleLevel(level)}
                     />
@@ -469,6 +483,7 @@ export default function HistoricalLogs() {
             <div className="relative">
               <select
                 className="bg-[#11161d] border border-[#44484f]/30 text-[#f1f3fc] text-sm rounded-md px-3 py-2 focus:border-[#8ff5ff]/50 focus:outline-none appearance-none cursor-pointer hover:border-[#44484f]/60 transition-colors"
+                disabled={Boolean(currentAIFilter)}
                 value={selectedService}
                 onChange={(e) => setSelectedService(e.target.value)}
               >
@@ -481,6 +496,10 @@ export default function HistoricalLogs() {
             
           </div>
         </div>
+        {currentAIFilter && <div className="mx-auto mt-3 max-w-7xl rounded-lg border border-[#8ff5ff]/20 bg-[#8ff5ff]/5 px-3 py-2 text-xs text-[#a8abb3]">
+          <div className="flex items-center justify-between gap-3"><span className="font-medium text-[#8ff5ff]">AI filters applied · clear to edit manual filters</span><button type="button" className="text-[#8ff5ff] hover:underline" onClick={() => setAiSearch(null)}>Clear AI filters</button></div>
+          <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-[11px]">{JSON.stringify(currentAIFilter)}</pre>
+        </div>}
       </header>
 
       {/* 2. Main Data Table */}
@@ -649,6 +668,8 @@ export default function HistoricalLogs() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
               
+              {can(activeOrg?.role, 'can_view_logs') && !isAccessExpired && <AIAnalyzeButton key={`${activeOrgId}:${selectedLog._id || selectedLog.id}`} orgId={activeOrgId} logId={selectedLog._id || selectedLog.id} />}
+
               {/* Header Info */}
               <div className="space-y-5">
                 <div>

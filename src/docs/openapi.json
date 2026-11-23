@@ -1,0 +1,3579 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "LogLogic Developer API",
+    "version": "1.0.0",
+    "description": "Developer-facing logging, workspace, saved-query and API-key endpoints. Set the server URL to your own backend. Administrative feature APIs are described separately in the application and backend feature documentation."
+  },
+  "servers": [
+    {
+      "url": "{baseUrl}",
+      "variables": {
+        "baseUrl": {
+          "default": "http://localhost:5000",
+          "description": "Your backend origin. Use HTTPS for hosted credentials."
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Ingestion"
+    },
+    {
+      "name": "Logs"
+    },
+    {
+      "name": "Workspaces"
+    },
+    {
+      "name": "API keys"
+    },
+    {
+      "name": "Saved queries"
+    },
+    {
+      "name": "Health"
+    },
+    {
+      "name": "Onboarding"
+    },
+    {
+      "name": "AI assistance"
+    }
+  ],
+  "paths": {
+    "/v1/ingest": {
+      "post": {
+        "operationId": "ingestLogs",
+        "tags": [
+          "Ingestion"
+        ],
+        "summary": "Ingest logs",
+        "description": "Single log, array, or {logs:[...]}. At most 1,000 logs and a 5 MB HTTP body. In Kafka mode serialized records must also fit 900,000 bytes. HTTP 202 acknowledges buffering. It does not confirm MongoDB persistence. Tenant and lane are server-selected. Redaction and privacy suppression precede publish.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                },
+                "example": {
+                  "status": "accepted",
+                  "message": "Logs received and queued for ingestion",
+                  "count": 1,
+                  "privacySuppressedCount": 0,
+                  "queuedAt": "2026-11-23T00:00:00.000Z",
+                  "ingestionLatencyMs": 3.4
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "HTTP body or serialized Kafka record too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestionBody"
+              },
+              "example": {
+                "service": "docs-demo",
+                "level": "info",
+                "message": "Hello from LogLogic docs",
+                "metadata": {
+                  "source": "documentation"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/logs/query": {
+      "post": {
+        "operationId": "queryLogsPost",
+        "tags": [
+          "Logs"
+        ],
+        "summary": "Query historical logs",
+        "description": "Requires logs:query on a key or can_view_logs for a workspace session. Page/limit controls are bounded. Dates must be valid ISO timestamps. For GET, repeat levels/services parameters instead of comma-joining arrays.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResult"
+                },
+                "example": {
+                  "logs": [
+                    {
+                      "service": "docs-demo",
+                      "level": "info",
+                      "message": "Hello from LogLogic docs",
+                      "metadata": {
+                        "source": "documentation"
+                      },
+                      "timestamp": "2026-11-23T00:00:00.000Z"
+                    }
+                  ],
+                  "pagination": {
+                    "total": 1,
+                    "page": 1,
+                    "limit": 25,
+                    "totalPages": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogQuery"
+              },
+              "example": {
+                "limit": 25,
+                "sort": "desc"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "queryLogsGet",
+        "tags": [
+          "Logs"
+        ],
+        "summary": "Query historical logs",
+        "description": "Requires logs:query on a key or can_view_logs for a workspace session. Page/limit controls are bounded. Dates must be valid ISO timestamps. For GET, repeat levels/services parameters instead of comma-joining arrays.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResult"
+                },
+                "example": {
+                  "logs": [
+                    {
+                      "service": "docs-demo",
+                      "level": "info",
+                      "message": "Hello from LogLogic docs",
+                      "metadata": {
+                        "source": "documentation"
+                      },
+                      "timestamp": "2026-11-23T00:00:00.000Z"
+                    }
+                  ],
+                  "pagination": {
+                    "total": 1,
+                    "page": 1,
+                    "limit": 25,
+                    "totalPages": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "orgId",
+            "schema": {
+              "type": "string",
+              "description": "Workspace for a session request. API-key requests are pinned to their key workspace."
+            }
+          },
+          {
+            "in": "query",
+            "name": "levels",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "in": "query",
+            "name": "services",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Text or allowed message/service/level/timestamp/metadata.* facets. Tenant and control facets are rejected."
+            }
+          },
+          {
+            "in": "query",
+            "name": "startDate",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "endDate",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 250,
+              "default": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "aiFilter",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "description": "JSON-serialized AIFilter. Revalidated server-side; cannot select tenant identity. Prefer POST query for structured input."
+          }
+        ]
+      }
+    },
+    "/v1/logs/stats": {
+      "post": {
+        "operationId": "logStatsPost",
+        "tags": [
+          "Logs"
+        ],
+        "summary": "Read log statistics",
+        "description": "Requires logs:query or can_view_logs. Results are cached for up to 60 seconds and are calculated from retained logs.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatsRequest"
+              },
+              "example": {
+                "timeRange": "24h"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "logStatsGet",
+        "tags": [
+          "Logs"
+        ],
+        "summary": "Read log statistics",
+        "description": "Requires logs:query or can_view_logs. Results are cached for up to 60 seconds and are calculated from retained logs.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "orgId",
+            "schema": {
+              "type": "string",
+              "description": "Workspace for a session request. API-key requests are pinned to their key workspace."
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeRange",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+              ],
+              "default": "24h"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/logs/services": {
+      "get": {
+        "operationId": "listServices",
+        "tags": [
+          "Logs"
+        ],
+        "summary": "List services",
+        "description": "Session-only. Requires can_view_logs. API keys cannot access this route.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "services": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "orgId",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/logs/export": {
+      "get": {
+        "operationId": "exportLogs",
+        "tags": [
+          "Logs"
+        ],
+        "summary": "Export CSV",
+        "description": "Session-only, can_export_logs. Maximum 100,000 matches. JSON {url} identifies an S3 download valid for 15 minutes. Storage failure returns a direct CSV attachment instead. Inspect Content-Type before parsing the response. Exports are audited.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "url"
+                  ],
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "orgId",
+            "schema": {
+              "type": "string",
+              "description": "Workspace for a session request. API-key requests are pinned to their key workspace."
+            }
+          },
+          {
+            "in": "query",
+            "name": "levels",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "in": "query",
+            "name": "services",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Text or allowed message/service/level/timestamp/metadata.* facets. Tenant and control facets are rejected."
+            }
+          },
+          {
+            "in": "query",
+            "name": "startDate",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "endDate",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "aiFilter",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "description": "JSON-serialized AIFilter. Revalidated server-side; cannot select tenant identity. Prefer POST query for structured input."
+          }
+        ]
+      }
+    },
+    "/v1/logs/stream": {
+      "get": {
+        "operationId": "streamLogs",
+        "tags": [
+          "Logs"
+        ],
+        "summary": "Tail logs with SSE",
+        "description": "Session-only with can_view_logs and Pro/Enterprise. Use an Authorization header with fetch streaming or curl --no-buffer. This reference keeps tokens out of URLs. Heartbeats and stream capacity limits apply.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Pro plan required"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "orgId",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/organizations": {
+      "get": {
+        "operationId": "listOrganizations",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "List your workspaces",
+        "description": "Returns only workspaces available to the signed-in user. Use a returned workspace ID for session-based reads.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/create": {
+      "post": {
+        "operationId": "createOrganization",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "Create a workspace",
+        "description": "Creates a workspace and owner membership for the current user.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "orgName"
+                ],
+                "properties": {
+                  "orgName": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys": {
+      "get": {
+        "operationId": "listKeys",
+        "tags": [
+          "API keys"
+        ],
+        "summary": "List key metadata",
+        "description": "Lists safe key metadata and policy. Raw keys cannot be retrieved after creation.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "orgId",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/keys/create": {
+      "post": {
+        "operationId": "createKey",
+        "tags": [
+          "API keys"
+        ],
+        "summary": "Create an API key",
+        "description": "Requires can_manage_keys. Keys default to logs:ingest. Granting logs:query also requires can_view_logs. rawKey is returned once. Store it on your server. Plan key limits and CIDR rules apply.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedKey"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKey"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/{id}": {
+      "patch": {
+        "operationId": "updateKey",
+        "tags": [
+          "API keys"
+        ],
+        "summary": "Update scopes and CIDRs",
+        "description": "Requires a session with can_manage_keys for the target key workspace. API keys cannot administer keys. Revocation is checked on the next authenticated request.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyPolicy"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeKey",
+        "tags": [
+          "API keys"
+        ],
+        "summary": "Revoke an API key",
+        "description": "Requires a session with can_manage_keys for the target key workspace. API keys cannot administer keys. Revocation is checked on the next authenticated request.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/logs/saved-queries": {
+      "get": {
+        "operationId": "listSavedQueries",
+        "tags": [
+          "Saved queries"
+        ],
+        "summary": "List saved queries",
+        "description": "Session-only workspace membership. Up to 50 saved queries per workspace.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "orgId",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createSavedQuery",
+        "tags": [
+          "Saved queries"
+        ],
+        "summary": "Save a query",
+        "description": "Session-only workspace membership. Query filters are stored for later use, not executed by this endpoint.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "query_filter"
+                ],
+                "properties": {
+                  "orgId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "query_filter": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/logs/saved-queries/{id}": {
+      "delete": {
+        "operationId": "deleteSavedQuery",
+        "tags": [
+          "Saved queries"
+        ],
+        "summary": "Delete a saved query",
+        "description": "Session-only. The creator or an authorized workspace owner/admin can delete a saved query. The server checks the resource workspace.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "tags": [
+          "Health"
+        ],
+        "summary": "Liveness",
+        "description": "Readiness includes required schema, data stores and Kafka/worker checks where enabled. Liveness alone does not establish ingestion readiness.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "readiness",
+        "tags": [
+          "Health"
+        ],
+        "summary": "Dependency readiness",
+        "description": "Readiness includes required schema, data stores and Kafka/worker checks where enabled. Liveness alone does not establish ingestion readiness.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/{orgId}": {
+      "get": {
+        "operationId": "getOnboarding",
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Read workspace setup progress",
+        "description": "Session header and can_view_logs required. Current active ingestion key and actual MongoDB persistence determine progress; dashboard acknowledgement is per user/workspace.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Target workspace; conflicting body/query/header selectors are rejected."
+          },
+          {
+            "name": "eventId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Optional simulator UUID: wait for this exact persisted event."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Workspace permissions, progress storage or ingestion dependency unavailable"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "orgId",
+                    "steps",
+                    "canManageKeys",
+                    "firstLog"
+                  ],
+                  "properties": {
+                    "orgId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "steps": {
+                      "type": "object",
+                      "required": [
+                        "workspace",
+                        "key",
+                        "firstLog",
+                        "dashboard"
+                      ],
+                      "properties": {
+                        "workspace": {
+                          "type": "boolean"
+                        },
+                        "key": {
+                          "type": "boolean"
+                        },
+                        "firstLog": {
+                          "type": "boolean"
+                        },
+                        "dashboard": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "canManageKeys": {
+                      "type": "boolean"
+                    },
+                    "startedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "viewedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "elapsedMs": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "firstLog": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "service": {
+                          "type": "string"
+                        },
+                        "level": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 512
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/{orgId}/test-event": {
+      "post": {
+        "operationId": "sendOnboardingEvent",
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Send a fixed test event",
+        "description": "Session header, can_view_logs and can_manage_keys required. Counts as normal ingestion. Reuses quota, lane routing, backpressure, redaction and privacy; 202 does not establish persistence. No customer log fields accepted. Five-second workspace simulator throttle.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Target workspace; conflicting body/query/header selectors are rejected."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Simulator throttle, quota or backpressure. Retry-After is present for throttle/backpressure, not necessarily for quota.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Seconds before retry when provided"
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Workspace permissions, progress storage or ingestion dependency unavailable"
+          },
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "accepted"
+                      ]
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "privacySuppressedCount": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Onboarding-Event-Id": {
+                "description": "Non-secret event correlation UUID; exposed through CORS",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/{orgId}/dashboard-viewed": {
+      "post": {
+        "operationId": "confirmOnboardingDashboard",
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Confirm visible persisted dashboard log",
+        "description": "Session header and can_view_logs required. Checks that logId exists in this tenant. Inserts a per-user/workspace acknowledgement without replacing the first confirmation timestamp.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Target workspace; conflicting body/query/header selectors are rejected."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota, stream capacity or queue backpressure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "5 seconds for queue backpressure. Monthly quota rejection may omit this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Workspace permissions, progress storage or ingestion dependency unavailable"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "recorded": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Log missing, removed or owned by another tenant"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "logId"
+                ],
+                "properties": {
+                  "logId": {
+                    "type": "string",
+                    "pattern": "^[a-fA-F0-9]{24}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ai/analyze": {
+      "post": {
+        "operationId": "analyzeLogWithAI",
+        "tags": [
+          "AI assistance"
+        ],
+        "summary": "Analyze a log error",
+        "description": "Explicit bearer session header and can_view_logs required; no API keys or URL tokens. Post-mortem also requires can_export_logs. All requests require an authorized workspace, enforce expiry/SSO/overrides, redact outgoing evidence and are limited to ten per user/workspace/minute. No provider diagnostics or credentials are returned. Stored IDs are always tenant-scoped. AI query output is allowlisted again during actual query/export execution.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "orgId",
+                  "log"
+                ],
+                "properties": {
+                  "orgId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "log": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "anyOf": [
+                      {
+                        "required": [
+                          "id"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "_id"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "message"
+                        ]
+                      }
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[a-fA-F0-9]{24}$"
+                      },
+                      "_id": {
+                        "type": "string",
+                        "pattern": "^[a-fA-F0-9]{24}$"
+                      },
+                      "message": {
+                        "type": "string",
+                        "maxLength": 65536
+                      },
+                      "service": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "level": {
+                        "type": "string",
+                        "maxLength": 12
+                      },
+                      "timestamp": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "metadata": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI result; hypotheses need human verification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "analysis": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Application AI limit or provider rate limit",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "60 seconds for the application limit, otherwise may be absent"
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AI key/configuration, redaction policy or dependency unavailable"
+          },
+          "404": {
+            "description": "Stored log/incident not found in this workspace"
+          },
+          "413": {
+            "description": "Evidence exceeds AI context budget"
+          },
+          "502": {
+            "description": "Provider failed or returned invalid/truncated output"
+          }
+        }
+      }
+    },
+    "/v1/ai/query": {
+      "post": {
+        "operationId": "translateAILogQuery",
+        "tags": [
+          "AI assistance"
+        ],
+        "summary": "Translate natural language into safe log filters",
+        "description": "Explicit bearer session header and can_view_logs required; no API keys or URL tokens. Post-mortem also requires can_export_logs. All requests require an authorized workspace, enforce expiry/SSO/overrides, redact outgoing evidence and are limited to ten per user/workspace/minute. No provider diagnostics or credentials are returned. Stored IDs are always tenant-scoped. AI query output is allowlisted again during actual query/export execution.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "orgId",
+                  "query"
+                ],
+                "properties": {
+                  "orgId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "query": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI result; hypotheses need human verification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "filter": {
+                      "$ref": "#/components/schemas/AIFilter"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Application AI limit or provider rate limit",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "60 seconds for the application limit, otherwise may be absent"
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AI key/configuration, redaction policy or dependency unavailable"
+          },
+          "404": {
+            "description": "Stored log/incident not found in this workspace"
+          },
+          "413": {
+            "description": "Evidence exceeds AI context budget"
+          },
+          "502": {
+            "description": "Provider failed or returned invalid/truncated output"
+          }
+        }
+      }
+    },
+    "/v1/ai/post-mortem": {
+      "post": {
+        "operationId": "generateAIPostMortem",
+        "tags": [
+          "AI assistance"
+        ],
+        "summary": "Generate an incident post-mortem draft",
+        "description": "Explicit bearer session header and can_view_logs required; no API keys or URL tokens. Post-mortem also requires can_export_logs. All requests require an authorized workspace, enforce expiry/SSO/overrides, redact outgoing evidence and are limited to ten per user/workspace/minute. No provider diagnostics or credentials are returned. Stored IDs are always tenant-scoped. AI query output is allowlisted again during actual query/export execution.",
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "orgId",
+                  "incidentId"
+                ],
+                "properties": {
+                  "orgId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "incidentId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI result; hypotheses need human verification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "markdown": {
+                      "type": "string"
+                    },
+                    "filename": {
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or mixed credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, workspace permission, expiry, IP policy or suspension denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Application AI limit or provider rate limit",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "60 seconds for the application limit, otherwise may be absent"
+              }
+            }
+          },
+          "500": {
+            "description": "Operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AI key/configuration, redaction policy or dependency unavailable"
+          },
+          "404": {
+            "description": "Stored log/incident not found in this workspace"
+          },
+          "413": {
+            "description": "Evidence exceeds AI context budget"
+          },
+          "502": {
+            "description": "Provider failed or returned invalid/truncated output"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-KEY",
+        "description": "Exactly one authentication method. Scope and CIDR rules apply."
+      },
+      "Session": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Supabase JWT",
+        "description": "Current signed-in session, subject to workspace permissions, expiry and SSO policy."
+      }
+    },
+    "schemas": {
+      "LogEntry": {
+        "type": "object",
+        "required": [
+          "service",
+          "level",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "warning",
+              "error",
+              "debug",
+              "trace",
+              "fatal",
+              "critical"
+            ],
+            "description": "Case-insensitive. warning normalizes to warn."
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "timestamp": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "number",
+                "description": "Unix milliseconds"
+              }
+            ]
+          },
+          "metadata": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": {}
+          }
+        }
+      },
+      "IngestionBody": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/LogEntry"
+          },
+          {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "logs"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "logs": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": {
+                  "$ref": "#/components/schemas/LogEntry"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Accepted": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "privacySuppressedCount": {
+            "type": "integer"
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ingestionLatencyMs": {
+            "type": "number"
+          }
+        }
+      },
+      "LogQuery": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "description": "Workspace for a session request. API-key requests are pinned to their key workspace."
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "level": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "search": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Text or allowed message/service/level/timestamp/metadata.* facets. Tenant and control facets are rejected."
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 250,
+            "default": 50
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "default": "desc"
+          },
+          "aiFilter": {
+            "$ref": "#/components/schemas/AIFilter"
+          }
+        }
+      },
+      "QueryResult": {
+        "type": "object",
+        "properties": {
+          "logs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "page": {
+                "type": "integer"
+              },
+              "limit": {
+                "type": "integer"
+              },
+              "totalPages": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "StatsRequest": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "description": "Workspace for a session request. API-key requests are pinned to their key workspace."
+          },
+          "timeRange": {
+            "type": "string",
+            "enum": [
+              "1h",
+              "6h",
+              "24h",
+              "7d",
+              "30d"
+            ],
+            "default": "24h"
+          }
+        }
+      },
+      "StatsResult": {
+        "type": "object",
+        "properties": {
+          "timeRange": {
+            "type": "string"
+          },
+          "totalLogs": {
+            "type": "integer"
+          },
+          "errorRate": {
+            "type": "number"
+          },
+          "countsByLevel": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "volumeTimeline": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "topServices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "KeyPolicy": {
+        "type": "object",
+        "properties": {
+          "scopes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "logs:ingest",
+                "logs:query"
+              ]
+            }
+          },
+          "allowedCidrs": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateKey": {
+        "type": "object",
+        "required": [
+          "orgId",
+          "keyName"
+        ],
+        "properties": {
+          "orgId": {
+            "type": "string"
+          },
+          "keyName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "logs:ingest",
+                "logs:query"
+              ]
+            },
+            "default": [
+              "logs:ingest"
+            ]
+          },
+          "allowedCidrs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "SafeKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key_hint": {
+            "type": "string"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowed_cidrs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "CreatedKey": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "keyDetails": {
+            "$ref": "#/components/schemas/SafeKey"
+          },
+          "rawKey": {
+            "type": "string",
+            "description": "Returned once. Store privately on your server."
+          }
+        }
+      },
+      "AIFilter": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "level": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "trace",
+                  "debug",
+                  "info",
+                  "warn",
+                  "error",
+                  "critical",
+                  "fatal"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "$in"
+                ],
+                "properties": {
+                  "$in": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "trace",
+                        "debug",
+                        "info",
+                        "warn",
+                        "error",
+                        "critical",
+                        "fatal"
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "service": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "$in"
+                ],
+                "properties": {
+                  "$in": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Literal case-insensitive substring; never executable regex or facets."
+          },
+          "timestamp": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "properties": {
+              "$gte": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "$lte": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

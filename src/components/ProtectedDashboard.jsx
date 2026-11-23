@@ -89,8 +89,6 @@ export default function ProtectedDashboard() {
 
       if (!hasOrg && location.pathname !== '/app/onboarding') {
         navigate('/app/onboarding');
-      } else if (hasOrg && location.pathname === '/app/onboarding') {
-        navigate('/app/dashboard');
       } else {
         setLoading(false);
       }

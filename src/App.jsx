@@ -24,60 +24,14 @@ import IncidentsPage from './pages/Incidents'
 import SettingsPage from './pages/Settings'
 import AppPricing from './pages/AppPricing'
 import AdminDashboard from './pages/AdminDashboard'
-import AdminInfrastructure from './pages/AdminInfrastructure'
-import AdminSecurityBilling from './pages/AdminSecurityBilling'
-import { getOrganizations } from './api/organization'
-
-// Admin routes require a real Supabase session AND an elevated role
-// (owner/admin) in at least one workspace. The old localStorage flag was
-// spoofable and set on any login, so any signed-in user could reach the
-// platform console — this closes that gap.
-const AdminRoute = ({ children }) => {
-  const [status, setStatus] = useState('checking') // checking | allowed | denied | unauth
-
-  useEffect(() => {
-    let active = true
-    const verify = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        if (active) setStatus('unauth')
-        return
-      }
-      try {
-        const { organizations = [] } = await getOrganizations()
-        const elevated = organizations.some(
-          (o) => o.role === 'owner' || o.role === 'admin'
-        )
-        if (active) setStatus(elevated ? 'allowed' : 'denied')
-      } catch {
-        if (active) setStatus('denied')
-      }
-    }
-    verify()
-    return () => { active = false }
-  }, [])
-
-  if (status === 'checking') {
-    return (
-      <div className="min-h-screen bg-background flex flex-col justify-center items-center font-mono text-primary">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <span>[VERIFYING ADMIN ACCESS...]</span>
-      </div>
-    )
-  }
-
-  if (status === 'unauth') return <Navigate to="/login" replace />
-  if (status === 'denied') return <Navigate to="/app/dashboard" replace />
-
-  return children
-}
+import AdminRoute from './components/PlatformAccessGate'
 
 const AppContent = () => {
   const location = useLocation()
   const isLoginPage = location.pathname === '/login'
   const isSignupPage = location.pathname === '/signup'
   const isPrivateAppPage = location.pathname.startsWith('/app')
-  const isAdminPage = location.pathname.startsWith('/admin')
+  const isAdminPage = (location.pathname.startsWith('/admin') || location.pathname.startsWith('/super-admin'))
 
   const [checkingAuth, setCheckingAuth] = useState(true)
 
@@ -140,6 +94,7 @@ const AppContent = () => {
           <Route path="pricing" element={<AppPricing />} />
           <Route path="onboarding" element={<Onboarding />} />
         </Route>
+        <Route path="/super-admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         <Route
           path="/admin/dashboard"
           element={(
@@ -160,7 +115,7 @@ const AppContent = () => {
           path="/admin/queues"
           element={(
             <AdminRoute>
-              <AdminInfrastructure />
+              <AdminDashboard />
             </AdminRoute>
           )}
         />
@@ -168,7 +123,7 @@ const AppContent = () => {
           path="/admin/alerts"
           element={(
             <AdminRoute>
-              <AdminInfrastructure />
+              <AdminDashboard />
             </AdminRoute>
           )}
         />
@@ -176,7 +131,7 @@ const AppContent = () => {
           path="/admin/billing"
           element={(
             <AdminRoute>
-              <AdminSecurityBilling />
+              <AdminDashboard />
             </AdminRoute>
           )}
         />
@@ -184,7 +139,7 @@ const AppContent = () => {
           path="/admin/settings"
           element={(
             <AdminRoute>
-              <AdminSecurityBilling />
+              <AdminDashboard />
             </AdminRoute>
           )}
         />

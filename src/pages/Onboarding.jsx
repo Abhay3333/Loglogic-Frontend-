@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { createOrganization } from '../api/organization';
+import OnboardingChecklist from '../components/OnboardingChecklist';
 import { FaTerminal } from 'react-icons/fa';
 
 export default function Onboarding() {
@@ -8,6 +9,7 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const { currentOrg, refreshOrganizations } = useOutletContext() || {};
 
   const handleCreateWorkspace = async (e) => {
     e.preventDefault();
@@ -17,19 +19,23 @@ export default function Onboarding() {
     try {
       await createOrganization({ orgName });
       
+      await refreshOrganizations?.();
       // Update local storage auth check to refresh states
       localStorage.setItem('loglogic_auth', 'true');
       
-      // Navigate to the dashboard
-      navigate('/app/dashboard');
+      // Keep the remaining setup steps available after workspace creation.
+      navigate('/app/onboarding');
 
-    } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.error || err.message || 'Failed to create workspace');
+    } catch {
+      setError('Failed to create workspace. Check your session and try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  if (currentOrg?.id) return <main className="mx-auto w-full max-w-7xl p-6">
+    <OnboardingChecklist key={currentOrg.id} orgId={currentOrg.id} />
+  </main>;
 
   return (
     <div className="min-h-screen flex flex-col justify-center items-center bg-background px-6 py-12 cyber-grid">
@@ -54,10 +60,11 @@ export default function Onboarding() {
           )}
           
           <div className="space-y-2">
-            <label className="block text-[10px] uppercase tracking-widest font-bold text-outline-variant">
+            <label htmlFor="workspace-name" className="block text-[10px] uppercase tracking-widest font-bold text-outline-variant">
               Workspace / Company Name
             </label>
             <input 
+              id="workspace-name"
               type="text" 
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}

@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import OnboardingChecklist from '../components/OnboardingChecklist'
+import React, { useMemo, useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getApiKeys } from '../api/apiKey'
@@ -39,19 +40,6 @@ const defaultVolumeData = [
   { time: 'Now', INFO: 0, ERROR: 0 },
 ]
 
-const recentAlerts = [
-  {
-    time: 'Live',
-    threshold: 'Continuous monitoring active across registered microservices',
-    type: 'Status'
-  },
-  {
-    time: 'Buffer',
-    threshold: 'High-throughput stream buffer draining to MongoDB Data Lake',
-    type: 'Pipeline'
-  }
-]
-
 const DashboardPage = () => {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -80,10 +68,10 @@ const DashboardPage = () => {
     }
   }, [user])
 
-  const activeOrgId = currentOrg?.id || (organizations.length > 0 ? organizations[0].id : null);
+  const activeOrgId = String(currentOrg?.id || (organizations.length > 0 ? organizations[0].id : ''));
   const currentOrgName = currentOrg?.name || (organizations.length > 0 ? organizations[0].name : 'Workspace');
 
-  const fetchDashboardData = () => {
+  const fetchDashboardData = useCallback(() => {
     if (!activeOrgId) return;
 
     setKeysLoading(true);
@@ -114,11 +102,12 @@ const DashboardPage = () => {
         console.error("Error loading plan quota:", err)
         setQuota((current) => ({ ...current, loaded: true }))
       });
-  };
+  }, [activeOrgId]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [activeOrgId]);
+    const timer = setTimeout(fetchDashboardData, 0);
+    return () => clearTimeout(timer);
+  }, [fetchDashboardData]);
 
   const activeKey = apiKeys.find((k) => k.is_active !== false) || apiKeys[0];
   const maskedApiKey = activeKey?.key_hint
@@ -252,6 +241,8 @@ const DashboardPage = () => {
             Last 24 Hours
           </button>
         </section>
+
+        {activeOrgId && !outletContext.isAccessExpired && <OnboardingChecklist key={activeOrgId} orgId={activeOrgId} dashboard onDelivered={fetchDashboardData} />}
 
         <section className="mb-8 grid gap-4 md:grid-cols-3">
           <article className="rounded-2xl border border-[#44484f]/25 bg-[#11161d] p-5 shadow-[0_0_20px_rgba(0,0,0,0.2)]">
