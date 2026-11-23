@@ -2789,13 +2789,13 @@
             }
           },
           "429": {
-            "description": "Application AI limit or provider rate limit",
+            "description": "Application AI limit reached (ten per user/workspace/minute). Provider throttling returns 503.",
             "headers": {
               "Retry-After": {
                 "schema": {
                   "type": "string"
                 },
-                "description": "60 seconds for the application limit, otherwise may be absent"
+                "description": "60 seconds for the application limit."
               }
             }
           },
@@ -2810,16 +2810,35 @@
             }
           },
           "503": {
-            "description": "AI key/configuration, redaction policy or dependency unavailable"
+            "description": "AI provider call timed out after 8000ms, failed, returned unusable output, or configuration/dependency is unavailable. Authentication/redaction can add HTTP latency before the provider call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "AI service timed out. Please try again."
+                      ]
+                    }
+                  }
+                },
+                "example": {
+                  "error": "AI service timed out. Please try again."
+                }
+              }
+            }
           },
           "404": {
             "description": "Stored log/incident not found in this workspace"
           },
           "413": {
             "description": "Evidence exceeds AI context budget"
-          },
-          "502": {
-            "description": "Provider failed or returned invalid/truncated output"
           }
         }
       }
@@ -2910,13 +2929,13 @@
             }
           },
           "429": {
-            "description": "Application AI limit or provider rate limit",
+            "description": "Application AI limit reached (ten per user/workspace/minute). Provider throttling returns 503.",
             "headers": {
               "Retry-After": {
                 "schema": {
                   "type": "string"
                 },
-                "description": "60 seconds for the application limit, otherwise may be absent"
+                "description": "60 seconds for the application limit."
               }
             }
           },
@@ -2931,16 +2950,35 @@
             }
           },
           "503": {
-            "description": "AI key/configuration, redaction policy or dependency unavailable"
+            "description": "AI provider call timed out after 8000ms, failed, returned unusable output, or configuration/dependency is unavailable. Authentication/redaction can add HTTP latency before the provider call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "AI service timed out. Please try again."
+                      ]
+                    }
+                  }
+                },
+                "example": {
+                  "error": "AI service timed out. Please try again."
+                }
+              }
+            }
           },
           "404": {
             "description": "Stored log/incident not found in this workspace"
           },
           "413": {
             "description": "Evidence exceeds AI context budget"
-          },
-          "502": {
-            "description": "Provider failed or returned invalid/truncated output"
           }
         }
       }
@@ -3036,13 +3074,13 @@
             }
           },
           "429": {
-            "description": "Application AI limit or provider rate limit",
+            "description": "Application AI limit reached (ten per user/workspace/minute). Provider throttling returns 503.",
             "headers": {
               "Retry-After": {
                 "schema": {
                   "type": "string"
                 },
-                "description": "60 seconds for the application limit, otherwise may be absent"
+                "description": "60 seconds for the application limit."
               }
             }
           },
@@ -3057,16 +3095,35 @@
             }
           },
           "503": {
-            "description": "AI key/configuration, redaction policy or dependency unavailable"
+            "description": "AI provider call timed out after 8000ms, failed, returned unusable output, or configuration/dependency is unavailable. Authentication/redaction can add HTTP latency before the provider call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "AI service timed out. Please try again."
+                      ]
+                    }
+                  }
+                },
+                "example": {
+                  "error": "AI service timed out. Please try again."
+                }
+              }
+            }
           },
           "404": {
             "description": "Stored log/incident not found in this workspace"
           },
           "413": {
             "description": "Evidence exceeds AI context budget"
-          },
-          "502": {
-            "description": "Provider failed or returned invalid/truncated output"
           }
         }
       }
